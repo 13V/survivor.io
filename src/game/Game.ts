@@ -1,0 +1,932 @@
+// Core game: bitECS world + fixed-timestep loop + spawn director + weapons +
+// collisions + level-ups + boss. See docs/01-CORE-GAMEPLAY.md for the design.
+import {
+  Application,
+  Container,
+  Sprite,
+  Text,
+  Graphics,
+  TilingSprite,
+  Texture,
+} from 'pixi.js';
+import {
+  createWorld,
+  addEntity,
+  removeEntity,
+  addComponent,
+  defineQuery,
+  type IWorld,
+} from 'bitecs';
+import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
+import { createTextures, type Textures } from './textures';
+import {
+  WEAPONS,
+  PASSIVES,
+  ENEMIES,
+  BOSS,
+  baseMods,
+  MAX_WEAPONS,
+  MAX_PASSIVES,
+  type Mods,
+  type WeaponDef,
+} from './data';
+import { Input } from '../core/input';
+import { SpatialHash } from '../core/spatialHash';
+import { Hud, type LevelOption } from '../ui/hud';
+import * as C from '../config';
+import { rand, pick } from '../core/rng';
+
+interface WeaponInst {
+  def: WeaponDef;
+  level: number;
+  timer: number;
+  angle: number;
+  blades: Sprite[];
+}
+
+interface DmgNum {
+  t: Text;
+  vy: number;
+  life: number;
+  max: number;
+}
+
+interface Telegraph {
+  g: Graphics;
+  x: number;
+  y: number;
+  r: number;
+  t: number;
+  delay: number;
+  dmg: number;
+}
+
+interface FxLine {
+  g: Graphics;
+  life: number;
+}
+
+type State = 'play' | 'paused' | 'over';
+
+const enemyQuery = defineQuery([Enemy, Position]);
+const projQuery = defineQuery([Projectile, Position, Velocity]);
+const gemQuery = defineQuery([Gem, Position]);
+
+export class Game {
+  private world: IWorld = createWorld();
+  private tex: Textures;
+  private bg: TilingSprite;
+  private worldC = new Container();
+  private input = new Input();
+  private hash = new SpatialHash(120);
+  private cand: number[] = [];
+
+  private spr: (Sprite | undefined)[] = [];
+  private freeSprites: Sprite[] = [];
+  private playerSprite: Sprite;
+
+  private dead = new Set<number>();
+  private killList: number[] = [];
+  private projDead = new Set<number>();
+  private gemDead = new Set<number>();
+
+  private dmgNums: DmgNum[] = [];
+  private freeText: Text[] = [];
+  private tele: Telegraph[] = [];
+  private fx: FxLine[] = [];
+
+  private player = {
+    x: 0,
+    y: 0,
+    hp: 100,
+    maxHp: 100,
+    moveSpeed: 230,
+    invuln: 0,
+    radius: C.PLAYER_RADIUS,
+  };
+  private mods: Mods = baseMods();
+  private weapons: WeaponInst[] = [];
+  private ownedWeapons = new Map<string, WeaponInst>();
+  private passives = new Map<string, number>();
+
+  private time = 0;
+  private kills = 0;
+  private level = 1;
+  private xp = 0;
+  private xpNext = C.xpForLevel(1);
+  private spawnAcc = 0;
+  private bossSpawned = false;
+  private bossEid = -1;
+  private win = false;
+  private state: State = 'play';
+  private acc = 0;
+
+  constructor(
+    private app: Application,
+    private hud: Hud,
+  ) {
+    this.tex = createTextures(app.renderer);
+    this.bg = new TilingSprite({
+      texture: this.makeGroundTexture(),
+      width: app.screen.width,
+      height: app.screen.height,
+    });
+    app.stage.addChild(this.bg);
+    app.stage.addChild(this.worldC);
+
+    this.playerSprite = new Sprite(this.tex.player);
+    this.playerSprite.anchor.set(0.5);
+    this.worldC.addChild(this.playerSprite);
+
+    window.addEventListener('resize', () => this.onResize());
+
+    this.reset();
+    app.ticker.add(() => this.frame());
+  }
+
+  private makeGroundTexture(): Texture {
+    const g = new Graphics()
+      .rect(0, 0, 64, 64)
+      .fill(0x161a22)
+      .rect(0, 0, 64, 64)
+      .stroke({ width: 1, color: 0x202634, alignment: 0 });
+    const t = this.app.renderer.generateTexture(g);
+    g.destroy();
+    return t;
+  }
+
+  private onResize(): void {
+    this.bg.width = this.app.screen.width;
+    this.bg.height = this.app.screen.height;
+  }
+
+  // ---- sprite pooling -------------------------------------------------------
+  private acquireSprite(tex: Texture): Sprite {
+    let s = this.freeSprites.pop();
+    if (!s) {
+      s = new Sprite();
+      s.anchor.set(0.5);
+      this.worldC.addChild(s);
+    }
+    s.texture = tex;
+    s.visible = true;
+    s.tint = 0xffffff;
+    s.rotation = 0;
+    s.scale.set(1);
+    return s;
+  }
+
+  private releaseSprite(eid: number): void {
+    const s = this.spr[eid];
+    if (s) {
+      s.visible = false;
+      this.freeSprites.push(s);
+      this.spr[eid] = undefined;
+    }
+  }
+
+  // ---- entity factories -----------------------------------------------------
+  private spawnEnemy(kind: number, x: number, y: number, boss = false): number {
+    const def = boss ? BOSS : ENEMIES[kind];
+    const dmul = C.difficultyMul(this.time);
+    const eid = addEntity(this.world);
+    addComponent(this.world, Position, eid);
+    addComponent(this.world, Velocity, eid);
+    addComponent(this.world, Enemy, eid);
+    Position.x[eid] = x;
+    Position.y[eid] = y;
+    Enemy.speed[eid] = def.speed;
+    Enemy.hp[eid] = def.hp * dmul;
+    Enemy.maxHp[eid] = def.hp * dmul;
+    Enemy.dmg[eid] = def.dmg * dmul;
+    Enemy.radius[eid] = def.radius;
+    Enemy.kind[eid] = kind;
+    Enemy.xp[eid] = def.xp;
+    Enemy.flash[eid] = 0;
+    Enemy.boss[eid] = boss ? 1 : 0;
+    Enemy.atkCd[eid] = 2.5;
+    Enemy.knock[eid] = 0;
+    const s = this.acquireSprite(boss ? this.tex.boss : this.tex.enemy[kind]);
+    this.spr[eid] = s;
+    return eid;
+  }
+
+  private spawnProjectile(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    dmg: number,
+    pierce: number,
+    crit: boolean,
+    radius: number,
+  ): void {
+    const eid = addEntity(this.world);
+    addComponent(this.world, Position, eid);
+    addComponent(this.world, Velocity, eid);
+    addComponent(this.world, Projectile, eid);
+    Position.x[eid] = x;
+    Position.y[eid] = y;
+    Velocity.x[eid] = vx;
+    Velocity.y[eid] = vy;
+    Projectile.dmg[eid] = dmg;
+    Projectile.life[eid] = 1.4;
+    Projectile.radius[eid] = radius;
+    Projectile.pierce[eid] = pierce;
+    Projectile.crit[eid] = crit ? 1 : 0;
+    const s = this.acquireSprite(this.tex.projectile);
+    s.rotation = Math.atan2(vy, vx);
+    this.spr[eid] = s;
+  }
+
+  private spawnGem(x: number, y: number, value: number, kind: number): void {
+    const eid = addEntity(this.world);
+    addComponent(this.world, Position, eid);
+    addComponent(this.world, Gem, eid);
+    Position.x[eid] = x + rand(-6, 6);
+    Position.y[eid] = y + rand(-6, 6);
+    Gem.value[eid] = value;
+    Gem.kind[eid] = kind;
+    Gem.magnet[eid] = 0;
+    Gem.life[eid] = 30;
+    this.spr[eid] = this.acquireSprite(this.tex.gem[kind]);
+  }
+
+  // ---- weapons --------------------------------------------------------------
+  private addWeapon(id: string): void {
+    const inst: WeaponInst = { def: WEAPONS[id], level: 1, timer: 0, angle: 0, blades: [] };
+    this.weapons.push(inst);
+    this.ownedWeapons.set(id, inst);
+    if (inst.def.type === 'orbit') this.rebuildBlades(inst);
+  }
+
+  private rebuildBlades(inst: WeaponInst): void {
+    for (const b of inst.blades) b.destroy();
+    inst.blades = [];
+    const count = inst.def.stats(inst.level).count;
+    for (let i = 0; i < count; i++) {
+      const b = new Sprite(this.tex.blade);
+      b.anchor.set(0.5);
+      this.worldC.addChild(b);
+      inst.blades.push(b);
+    }
+  }
+
+  private critRoll(): boolean {
+    return Math.random() < this.mods.critRate;
+  }
+
+  private nearestEnemy(x: number, y: number, range: number): number {
+    this.hash.queryRadius(x, y, range, this.cand);
+    let best = -1;
+    let bd = range * range;
+    for (const e of this.cand) {
+      if (this.dead.has(e)) continue;
+      const dx = Position.x[e] - x;
+      const dy = Position.y[e] - y;
+      const d2 = dx * dx + dy * dy;
+      if (d2 < bd) {
+        bd = d2;
+        best = e;
+      }
+    }
+    return best;
+  }
+
+  private damageEnemy(eid: number, base: number, crit: boolean): void {
+    if (this.dead.has(eid)) return;
+    const dmg = base * (crit ? this.mods.critDmg : 1);
+    Enemy.hp[eid] -= dmg;
+    Enemy.flash[eid] = 0.09;
+    this.spawnDmgNum(Position.x[eid], Position.y[eid] - Enemy.radius[eid], dmg, crit);
+    if (Enemy.hp[eid] <= 0) {
+      this.dead.add(eid);
+      this.killList.push(eid);
+    }
+  }
+
+  private fireWeapons(dt: number): void {
+    const p = this.player;
+    for (const w of this.weapons) {
+      const s = w.def.stats(w.level);
+      if (w.def.type === 'orbit') {
+        w.angle += 2.4 * dt;
+        w.timer -= dt;
+        if (w.timer <= 0) {
+          w.timer += s.cooldown;
+          const orbitR = s.range;
+          this.hash.queryRadius(p.x, p.y, orbitR + s.radius + 28, this.cand);
+          for (const e of this.cand) {
+            if (this.dead.has(e)) continue;
+            const d = Math.hypot(Position.x[e] - p.x, Position.y[e] - p.y);
+            const er = Enemy.radius[e];
+            if (d > orbitR - s.radius - er && d < orbitR + s.radius + er) {
+              this.damageEnemy(e, s.dmg * this.mods.dmgMul, this.critRoll());
+            }
+          }
+        }
+        continue;
+      }
+
+      w.timer -= dt;
+      if (w.timer > 0) continue;
+      w.timer += Math.max(s.cooldown * this.mods.cdMul, 0.1);
+
+      if (w.def.type === 'projectile') {
+        const tgt = this.nearestEnemy(p.x, p.y, s.range);
+        let dirx = this.input.facing.x;
+        let diry = this.input.facing.y;
+        if (tgt >= 0) {
+          const dx = Position.x[tgt] - p.x;
+          const dy = Position.y[tgt] - p.y;
+          const d = Math.hypot(dx, dy) || 1;
+          dirx = dx / d;
+          diry = dy / d;
+        }
+        const baseA = Math.atan2(diry, dirx);
+        const spread = 0.16;
+        for (let i = 0; i < s.count; i++) {
+          const a = baseA + (i - (s.count - 1) / 2) * spread;
+          this.spawnProjectile(
+            p.x,
+            p.y,
+            Math.cos(a) * s.speed,
+            Math.sin(a) * s.speed,
+            s.dmg * this.mods.dmgMul,
+            s.pierce,
+            this.critRoll(),
+            s.radius,
+          );
+        }
+      } else if (w.def.type === 'zap') {
+        this.hash.queryRadius(p.x, p.y, s.range, this.cand);
+        const list = this.cand
+          .filter((e) => !this.dead.has(e))
+          .map((e) => ({ e, d: Math.hypot(Position.x[e] - p.x, Position.y[e] - p.y) }))
+          .sort((a, b) => a.d - b.d)
+          .slice(0, s.count);
+        for (const { e } of list) {
+          this.damageEnemy(e, s.dmg * this.mods.dmgMul, this.critRoll());
+          this.spawnZap(p.x, p.y, Position.x[e], Position.y[e]);
+        }
+      } else if (w.def.type === 'nova') {
+        this.hash.queryRadius(p.x, p.y, s.range, this.cand);
+        for (const e of this.cand) {
+          if (this.dead.has(e)) continue;
+          const dx = Position.x[e] - p.x;
+          const dy = Position.y[e] - p.y;
+          const d = Math.hypot(dx, dy) || 1;
+          if (d < s.range + Enemy.radius[e]) {
+            this.damageEnemy(e, s.dmg * this.mods.dmgMul, this.critRoll());
+            Enemy.knx[e] = dx / d;
+            Enemy.kny[e] = dy / d;
+            Enemy.knock[e] = s.knock;
+          }
+        }
+        this.spawnNovaRing(p.x, p.y, s.range, w.def.color);
+      }
+    }
+  }
+
+  // ---- vfx ------------------------------------------------------------------
+  private spawnDmgNum(x: number, y: number, val: number, crit: boolean): void {
+    let t = this.freeText.pop();
+    if (!t) {
+      t = new Text({ text: '', style: { fontFamily: 'Arial', fontSize: 16, fill: 0xffffff } });
+      t.anchor.set(0.5);
+      this.worldC.addChild(t);
+    }
+    t.text = String(Math.round(val));
+    t.style.fontSize = crit ? 23 : 16;
+    t.style.fill = crit ? 0xffe066 : 0xffffff;
+    t.style.fontWeight = crit ? 'bold' : 'normal';
+    t.style.stroke = { color: 0x000000, width: 3 };
+    t.position.set(x, y);
+    t.visible = true;
+    t.alpha = 1;
+    this.dmgNums.push({ t, vy: -46, life: 0.6, max: 0.6 });
+  }
+
+  private spawnZap(x1: number, y1: number, x2: number, y2: number): void {
+    const g = new Graphics();
+    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 3, color: 0x9be7ff, alpha: 0.9 });
+    this.worldC.addChild(g);
+    this.fx.push({ g, life: 0.12 });
+  }
+
+  private spawnNovaRing(x: number, y: number, r: number, color: number): void {
+    const g = new Graphics().circle(0, 0, r).stroke({ width: 4, color, alpha: 0.7 });
+    g.position.set(x, y);
+    this.worldC.addChild(g);
+    this.fx.push({ g, life: 0.18 });
+  }
+
+  // ---- per-step systems -----------------------------------------------------
+  private movePlayer(dt: number): void {
+    const p = this.player;
+    const sp = p.moveSpeed * this.mods.moveMul;
+    p.x += this.input.dir.x * sp * dt;
+    p.y += this.input.dir.y * sp * dt;
+    p.x = Math.max(-C.ARENA_HALF, Math.min(C.ARENA_HALF, p.x));
+    p.y = Math.max(-C.ARENA_HALF, Math.min(C.ARENA_HALF, p.y));
+    p.invuln = Math.max(0, p.invuln - dt);
+  }
+
+  private spawnDirector(dt: number): void {
+    if (this.bossSpawned) return;
+    const rate = 2 + this.time * 0.2;
+    this.spawnAcc += dt * rate;
+    let count = enemyQuery(this.world).length;
+    const cap = 700;
+    while (this.spawnAcc >= 1) {
+      this.spawnAcc -= 1;
+      if (count >= cap) continue;
+      this.spawnOne();
+      count++;
+    }
+  }
+
+  private spawnOne(): void {
+    let kind = 0;
+    const t = this.time;
+    const r = Math.random();
+    if (t < 18) kind = 0;
+    else if (t < 45) kind = r < 0.7 ? 0 : 1;
+    else kind = r < 0.55 ? 0 : r < 0.85 ? 1 : 2;
+    const ang = rand(0, Math.PI * 2);
+    const R = Math.max(this.app.screen.width, this.app.screen.height) / 2 + 90;
+    this.spawnEnemy(kind, this.player.x + Math.cos(ang) * R, this.player.y + Math.sin(ang) * R);
+  }
+
+  private bossCheck(): void {
+    if (this.bossSpawned || this.time < C.BOSS_TIME) return;
+    this.bossSpawned = true;
+    // board-wipe: clear all normal enemies (see docs/04)
+    for (const e of enemyQuery(this.world).slice()) {
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    this.bossEid = this.spawnEnemy(0, this.player.x, this.player.y - 360, true);
+  }
+
+  private updateEnemies(dt: number): void {
+    const p = this.player;
+    for (const e of enemyQuery(this.world)) {
+      const dx = p.x - Position.x[e];
+      const dy = p.y - Position.y[e];
+      const d = Math.hypot(dx, dy) || 1;
+      Position.x[e] += (dx / d) * Enemy.speed[e] * dt;
+      Position.y[e] += (dy / d) * Enemy.speed[e] * dt;
+      if (Enemy.knock[e] > 0) {
+        Position.x[e] += Enemy.knx[e] * Enemy.knock[e] * dt;
+        Position.y[e] += Enemy.kny[e] * Enemy.knock[e] * dt;
+        Enemy.knock[e] = Math.max(0, Enemy.knock[e] - 900 * dt);
+      }
+      if (Enemy.flash[e] > 0) Enemy.flash[e] -= dt;
+      if (Enemy.boss[e]) {
+        Enemy.atkCd[e] -= dt;
+        if (Enemy.atkCd[e] <= 0) {
+          Enemy.atkCd[e] = 2.6;
+          this.spawnTelegraph(p.x, p.y, 135, 0.9, Enemy.dmg[e]);
+        }
+      }
+    }
+  }
+
+  private spawnTelegraph(x: number, y: number, r: number, delay: number, dmg: number): void {
+    const g = new Graphics();
+    this.worldC.addChild(g);
+    this.tele.push({ g, x, y, r, t: 0, delay, dmg });
+  }
+
+  private updateProjectiles(dt: number): void {
+    for (const e of projQuery(this.world)) {
+      Position.x[e] += Velocity.x[e] * dt;
+      Position.y[e] += Velocity.y[e] * dt;
+      Projectile.life[e] -= dt;
+      if (Projectile.life[e] <= 0) this.projDead.add(e);
+    }
+  }
+
+  private collideProjectiles(): void {
+    for (const e of projQuery(this.world)) {
+      if (this.projDead.has(e)) continue;
+      const px = Position.x[e];
+      const py = Position.y[e];
+      const pr = Projectile.radius[e];
+      let pierce = Projectile.pierce[e];
+      this.hash.queryRadius(px, py, pr + 30, this.cand);
+      for (const en of this.cand) {
+        if (this.dead.has(en)) continue;
+        const er = Enemy.radius[en];
+        const dx = Position.x[en] - px;
+        const dy = Position.y[en] - py;
+        if (dx * dx + dy * dy < (pr + er) * (pr + er)) {
+          this.damageEnemy(en, Projectile.dmg[e], Projectile.crit[e] === 1);
+          pierce--;
+          if (pierce < 0) {
+            this.projDead.add(e);
+            break;
+          }
+        }
+      }
+    }
+    for (const e of this.projDead) {
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    this.projDead.clear();
+  }
+
+  private flushKills(): void {
+    for (const e of this.killList) {
+      const kind = Enemy.xp[e] >= 50 ? 2 : Enemy.kind[e] === 2 ? 1 : 0;
+      if (Math.random() < 0.04) this.spawnGem(Position.x[e], Position.y[e], 0, 3);
+      else this.spawnGem(Position.x[e], Position.y[e], Enemy.xp[e], kind);
+      if (Enemy.boss[e]) this.win = true;
+      this.kills++;
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    this.killList.length = 0;
+    this.dead.clear();
+  }
+
+  private playerContact(): void {
+    const p = this.player;
+    if (p.invuln > 0) return;
+    this.hash.queryRadius(p.x, p.y, p.radius + 30, this.cand);
+    for (const e of this.cand) {
+      const er = Enemy.radius[e];
+      const dx = Position.x[e] - p.x;
+      const dy = Position.y[e] - p.y;
+      if (dx * dx + dy * dy < (p.radius + er) * (p.radius + er)) {
+        p.hp -= Enemy.dmg[e];
+        p.invuln = C.PLAYER_INVULN;
+        break;
+      }
+    }
+  }
+
+  private updateGems(dt: number): void {
+    const p = this.player;
+    const pr = C.BASE_PICKUP_RADIUS * this.mods.pickupMul;
+    for (const e of gemQuery(this.world)) {
+      Gem.life[e] -= dt;
+      if (Gem.life[e] <= 0) {
+        this.gemDead.add(e);
+        continue;
+      }
+      const dx = p.x - Position.x[e];
+      const dy = p.y - Position.y[e];
+      const d = Math.hypot(dx, dy) || 1;
+      if (Gem.magnet[e] || d < pr) {
+        Gem.magnet[e] = 1;
+        const sp = 300 + Math.max(0, pr - d) * 3;
+        Position.x[e] += (dx / d) * sp * dt;
+        Position.y[e] += (dy / d) * sp * dt;
+      }
+    }
+  }
+
+  private collectGems(): void {
+    const p = this.player;
+    for (const e of gemQuery(this.world)) {
+      if (this.gemDead.has(e)) continue;
+      const dx = Position.x[e] - p.x;
+      const dy = Position.y[e] - p.y;
+      if (dx * dx + dy * dy < C.COLLECT_RADIUS * C.COLLECT_RADIUS) {
+        if (Gem.kind[e] === 3) {
+          p.hp = Math.min(p.maxHp, p.hp + 40);
+        } else {
+          this.xp += Gem.value[e] * this.mods.xpMul;
+        }
+        this.gemDead.add(e);
+      }
+    }
+    for (const e of this.gemDead) {
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    this.gemDead.clear();
+  }
+
+  private updateTelegraphs(dt: number): void {
+    for (let i = this.tele.length - 1; i >= 0; i--) {
+      const tg = this.tele[i];
+      tg.t += dt;
+      if (tg.t >= tg.delay) {
+        const dx = this.player.x - tg.x;
+        const dy = this.player.y - tg.y;
+        if (dx * dx + dy * dy < tg.r * tg.r && this.player.invuln <= 0) {
+          this.player.hp -= tg.dmg;
+          this.player.invuln = C.PLAYER_INVULN;
+        }
+        tg.g.destroy();
+        this.tele.splice(i, 1);
+      }
+    }
+  }
+
+  private updateDmgNums(dt: number): void {
+    for (let i = this.dmgNums.length - 1; i >= 0; i--) {
+      const d = this.dmgNums[i];
+      d.life -= dt;
+      d.t.position.y += d.vy * dt;
+      d.t.alpha = Math.max(0, d.life / d.max);
+      if (d.life <= 0) {
+        d.t.visible = false;
+        this.freeText.push(d.t);
+        this.dmgNums.splice(i, 1);
+      }
+    }
+  }
+
+  private updateFx(dt: number): void {
+    for (let i = this.fx.length - 1; i >= 0; i--) {
+      const f = this.fx[i];
+      f.life -= dt;
+      f.g.alpha = Math.max(0, f.life * 6);
+      if (f.life <= 0) {
+        f.g.destroy();
+        this.fx.splice(i, 1);
+      }
+    }
+  }
+
+  // ---- progression ----------------------------------------------------------
+  private recompute(): void {
+    const m = baseMods();
+    for (const [id, lvl] of this.passives) PASSIVES[id].apply(lvl, m);
+    this.mods = m;
+    this.player.maxHp = 100 * m.maxHpMul;
+    if (this.player.hp > this.player.maxHp) this.player.hp = this.player.maxHp;
+  }
+
+  private checkLevelUp(): void {
+    if (this.state !== 'play') return;
+    if (this.xp >= this.xpNext) this.openLevelUp();
+  }
+
+  private openLevelUp(): void {
+    this.state = 'paused';
+    this.input.enabled = false;
+    this.hud.showLevelUp(this.buildOptions(), (o) => this.applyOption(o));
+  }
+
+  private buildOptions(): LevelOption[] {
+    const opts: LevelOption[] = [];
+    for (const w of this.weapons) {
+      if (w.level < w.def.maxLevel)
+        opts.push({
+          kind: 'weapon-up',
+          id: w.def.id,
+          title: `${w.def.name} Lv${w.level + 1}`,
+          sub: w.def.desc,
+          icon: w.def.icon,
+        });
+    }
+    for (const [id, lvl] of this.passives) {
+      const d = PASSIVES[id];
+      if (lvl < d.maxLevel)
+        opts.push({ kind: 'passive-up', id, title: `${d.name} Lv${lvl + 1}`, sub: d.desc, icon: d.icon });
+    }
+    if (this.weapons.length < MAX_WEAPONS) {
+      for (const id in WEAPONS) {
+        if (!this.ownedWeapons.has(id))
+          opts.push({ kind: 'weapon-new', id, title: `${WEAPONS[id].name}`, sub: WEAPONS[id].desc, icon: WEAPONS[id].icon });
+      }
+    }
+    if (this.passives.size < MAX_PASSIVES) {
+      for (const id in PASSIVES) {
+        if (!this.passives.has(id))
+          opts.push({ kind: 'passive-new', id, title: `${PASSIVES[id].name}`, sub: PASSIVES[id].desc, icon: PASSIVES[id].icon });
+      }
+    }
+    // shuffle and take 3, padding with heal if needed
+    for (let i = opts.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [opts[i], opts[j]] = [opts[j], opts[i]];
+    }
+    const out = opts.slice(0, 3);
+    while (out.length < 3) out.push({ kind: 'heal', title: 'Field Ration', sub: 'Restore 40 HP', icon: '❤' });
+    return out;
+  }
+
+  private applyOption(o: LevelOption): void {
+    switch (o.kind) {
+      case 'weapon-new':
+        if (o.id) this.addWeapon(o.id);
+        break;
+      case 'weapon-up': {
+        const w = o.id ? this.ownedWeapons.get(o.id) : undefined;
+        if (w) {
+          w.level++;
+          if (w.def.type === 'orbit') this.rebuildBlades(w);
+        }
+        break;
+      }
+      case 'passive-new':
+      case 'passive-up':
+        if (o.id) this.passives.set(o.id, (this.passives.get(o.id) ?? 0) + 1);
+        break;
+      case 'heal':
+        this.player.hp = Math.min(this.player.maxHp, this.player.hp + 40);
+        break;
+    }
+    this.recompute();
+    this.xp -= this.xpNext;
+    this.level++;
+    this.xpNext = C.xpForLevel(this.level);
+    if (this.xp >= this.xpNext) {
+      this.hud.showLevelUp(this.buildOptions(), (n) => this.applyOption(n));
+    } else {
+      this.hud.hideLevelUp();
+      this.state = 'play';
+      this.input.enabled = true;
+    }
+  }
+
+  private checkEnd(): void {
+    if (this.state === 'over') return;
+    if (this.player.hp <= 0) this.end('You Died');
+    else if (this.win) this.end('You Survived!');
+  }
+
+  private end(title: string): void {
+    this.state = 'over';
+    this.input.enabled = false;
+    const mm = Math.floor(this.time / 60);
+    const ss = Math.floor(this.time % 60);
+    this.hud.showEnd(
+      title,
+      `Time ${mm}:${ss.toString().padStart(2, '0')}   ·   Kills ${this.kills}   ·   Level ${this.level}`,
+      () => this.reset(),
+    );
+  }
+
+  // ---- lifecycle ------------------------------------------------------------
+  private reset(): void {
+    for (const e of enemyQuery(this.world).slice()) {
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    for (const e of projQuery(this.world).slice()) {
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    for (const e of gemQuery(this.world).slice()) {
+      this.releaseSprite(e);
+      removeEntity(this.world, e);
+    }
+    for (const d of this.dmgNums) d.t.destroy();
+    this.dmgNums = [];
+    this.freeText = [];
+    for (const t of this.tele) t.g.destroy();
+    this.tele = [];
+    for (const f of this.fx) f.g.destroy();
+    this.fx = [];
+    for (const w of this.weapons) for (const b of w.blades) b.destroy();
+
+    this.weapons = [];
+    this.ownedWeapons.clear();
+    this.passives.clear();
+    this.dead.clear();
+    this.killList.length = 0;
+    this.projDead.clear();
+    this.gemDead.clear();
+
+    this.player.x = 0;
+    this.player.y = 0;
+    this.player.hp = 100;
+    this.player.maxHp = 100;
+    this.player.invuln = 0;
+    this.time = 0;
+    this.kills = 0;
+    this.level = 1;
+    this.xp = 0;
+    this.xpNext = C.xpForLevel(1);
+    this.spawnAcc = 0;
+    this.bossSpawned = false;
+    this.bossEid = -1;
+    this.win = false;
+    this.acc = 0;
+    this.state = 'play';
+    this.input.enabled = true;
+
+    this.addWeapon('shuriken');
+    this.recompute();
+    this.hud.hideEnd();
+    this.hud.hideLevelUp();
+  }
+
+  private step(dt: number): void {
+    this.time += dt;
+    this.input.update();
+    this.movePlayer(dt);
+    this.spawnDirector(dt);
+    this.bossCheck();
+    this.updateEnemies(dt);
+    this.updateProjectiles(dt);
+    this.updateGems(dt);
+
+    this.hash.clear();
+    for (const e of enemyQuery(this.world)) this.hash.insert(e, Position.x[e], Position.y[e]);
+
+    this.fireWeapons(dt);
+    this.collideProjectiles();
+    this.playerContact();
+    this.collectGems();
+    this.flushKills();
+
+    this.updateTelegraphs(dt);
+    this.updateDmgNums(dt);
+    this.updateFx(dt);
+
+    this.checkLevelUp();
+    this.checkEnd();
+  }
+
+  private render(): void {
+    const p = this.player;
+    this.worldC.x = this.app.screen.width / 2 - p.x;
+    this.worldC.y = this.app.screen.height / 2 - p.y;
+    this.bg.tilePosition.set(-p.x, -p.y);
+
+    this.playerSprite.position.set(p.x, p.y);
+    this.playerSprite.alpha = p.invuln > 0 ? 0.55 : 1;
+
+    for (const e of enemyQuery(this.world)) {
+      const s = this.spr[e];
+      if (!s) continue;
+      s.position.set(Position.x[e], Position.y[e]);
+      s.tint = Enemy.flash[e] > 0 ? 0xff7777 : 0xffffff;
+    }
+    for (const e of projQuery(this.world)) {
+      const s = this.spr[e];
+      if (s) s.position.set(Position.x[e], Position.y[e]);
+    }
+    for (const e of gemQuery(this.world)) {
+      const s = this.spr[e];
+      if (s) s.position.set(Position.x[e], Position.y[e]);
+    }
+
+    // orbit blades
+    for (const w of this.weapons) {
+      if (w.def.type !== 'orbit') continue;
+      const s = w.def.stats(w.level);
+      const n = w.blades.length;
+      const scale = s.radius / 11;
+      for (let i = 0; i < n; i++) {
+        const a = w.angle + (i / n) * Math.PI * 2;
+        const b = w.blades[i];
+        b.position.set(p.x + Math.cos(a) * s.range, p.y + Math.sin(a) * s.range);
+        b.scale.set(scale);
+      }
+    }
+
+    // telegraphs (expanding danger ring)
+    for (const tg of this.tele) {
+      const prog = tg.t / tg.delay;
+      tg.g.clear();
+      tg.g.circle(0, 0, tg.r).fill({ color: 0xff3344, alpha: 0.1 + 0.25 * prog });
+      tg.g.circle(0, 0, tg.r).stroke({ width: 3, color: 0xff5566, alpha: 0.85 });
+      tg.g.position.set(tg.x, tg.y);
+    }
+
+    const boss =
+      this.bossSpawned && this.bossEid >= 0 && Enemy.boss[this.bossEid] === 1 && !this.win
+        ? { hp: Math.max(0, Enemy.hp[this.bossEid]), maxHp: Enemy.maxHp[this.bossEid] }
+        : null;
+
+    this.hud.update({
+      time: this.time,
+      hp: Math.max(0, p.hp),
+      maxHp: p.maxHp,
+      level: this.level,
+      xp: this.xp,
+      xpNext: this.xpNext,
+      kills: this.kills,
+      weapons: this.weapons.map((w) => ({ icon: w.def.icon, level: w.level })),
+      passives: [...this.passives].map(([id, lvl]) => ({ icon: PASSIVES[id].icon, level: lvl })),
+      joy: this.input.joy,
+      boss,
+    });
+  }
+
+  private frame(): void {
+    const dt = Math.min(this.app.ticker.deltaMS / 1000, C.MAX_FRAME_DT);
+    if (this.state === 'play') {
+      this.acc += dt;
+      while (this.acc >= C.FIXED_DT) {
+        this.step(C.FIXED_DT);
+        this.acc -= C.FIXED_DT;
+        if (this.state !== 'play') {
+          this.acc = 0;
+          break;
+        }
+      }
+    }
+    this.render();
+  }
+}

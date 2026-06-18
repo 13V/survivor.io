@@ -2,7 +2,19 @@
 
 A **browser-based, top-down survivor/auto-battler** in the lineage of *Vampire Survivors* and Habby's **survivor.io**, with an optional **Solana companion token** as a later, clearly-separated phase.
 
-> **Status:** Research & design phase complete. This repo currently holds the **design bible** distilled from a broad research sweep of survivor.io's mechanics, plus a tech plan and a (heavily caveated) token plan. No game code yet — see [`docs/11-BUILD-ROADMAP.md`](docs/11-BUILD-ROADMAP.md) for the build sequence.
+> **Status:** A playable **M1 core-loop prototype** is in (PixiJS + bitECS + Vite + TypeScript) alongside the full **design bible**. See [Running the prototype](#running-the-prototype) and [`docs/11-BUILD-ROADMAP.md`](docs/11-BUILD-ROADMAP.md).
+
+## Running the prototype
+
+```bash
+npm install
+npm run dev       # open the printed localhost URL
+# or: npm run build && npm run preview
+```
+
+**Controls:** WASD / arrow keys, or drag anywhere (touch/mouse) for a floating joystick. Attacks are automatic. Survive, vacuum XP, pick 1-of-3 upgrades on level-up, stack a build, and kill the boss that spawns at 1:30.
+
+**What's implemented (M1):** fixed-timestep ECS loop, uniform-grid spatial-hash collision, sprite/object pooling, a data-driven spawn director, 4 weapons (Shuriken / Orbit Blades / Tesla / Forcefield) + 6 passives, the level-up draft, floating damage numbers, hit-flash + knockback juice, an enemy roster, and a telegraphed boss with a board-wipe. All content is data-driven in [`src/game/data.ts`](src/game/data.ts). Architecture follows [`docs/09-TECH-STACK.md`](docs/09-TECH-STACK.md).
 
 ---
 

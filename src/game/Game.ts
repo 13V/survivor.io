@@ -346,11 +346,13 @@ export class Game {
     const onColRoad = cx < RW;
     const onRowRoad = cy < RW;
     if (onColRoad || onRowRoad) {
-      // continuous yellow centre line down each road
-      if ((onColRoad && cx === 1) || (onRowRoad && cy === 1)) return 'asphalt_yellow';
-      // white edge line where the road meets the kerb (outer lanes, away from intersections)
-      if (onColRoad && !onRowRoad && (cx === 0 || cx === RW - 1)) return 'asphalt_edge';
-      if (onRowRoad && !onColRoad && (cy === 0 || cy === RW - 1)) return 'asphalt_edge';
+      const intersection = onColRoad && onRowRoad;
+      if (!intersection) {
+        // continuous double-yellow centre line, using the tile whose painted line runs ALONG
+        // this road's iso axis so the lines join up tile-to-tile (no broken cross-dashes).
+        if (onColRoad && cx === 1) return 'asphalt_yellow'; // column road runs along the row axis
+        if (onRowRoad && cy === 1) return 'asphalt_yellow_b'; // row road runs along the col axis
+      }
       return 'asphalt';
     }
     if (cx === RW || cy === RW || cx === B - 1 || cy === B - 1) return 'sidewalk';

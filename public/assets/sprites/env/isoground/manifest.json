@@ -5,16 +5,83 @@
   "apexY": 0,
   "note": "Isometric ground blocks extracted AS-IS (not un-skewed). Each tile is a 2:1 diamond TOP face plus extruded sides below. Diamond metrics measured on the representative tile asphalt.png (128x81): top-diamond apex at (apexX,apexY)=(64,0), left vertex (0,32), right vertex (127,32), bottom vertex (64,64). diamondW/diamondH describe the walkable top face that tessellates on an iso grid. Tiles were alpha-trimmed of fully-transparent borders only; the full block (top+sides) is intact. apexY is 0 for all tiles except dirt.png whose apex pixel is at y=1 due to one extra faint antialiased row (height 82).",
   "tiles": [
-    { "file": "asphalt.png",              "w": 128, "h": 81, "name": "Plain asphalt road" },
-    { "file": "asphalt_yellow.png",        "w": 128, "h": 81, "name": "Asphalt with yellow double lane line" },
-    { "file": "asphalt_yellow_curve.png",  "w": 128, "h": 81, "name": "Asphalt with curved yellow lane line" },
-    { "file": "asphalt_dash.png",          "w": 128, "h": 81, "name": "Asphalt with white dashed lane line" },
-    { "file": "asphalt_edge.png",          "w": 128, "h": 81, "name": "Asphalt with white edge line" },
-    { "file": "asphalt_line.png",          "w": 128, "h": 81, "name": "Asphalt with straight white line" },
-    { "file": "asphalt_curb.png",          "w": 128, "h": 81, "name": "Asphalt with white curb/edge line" },
-    { "file": "sidewalk.png",              "w": 128, "h": 81, "name": "Cobblestone sidewalk / pavement" },
-    { "file": "concrete.png",              "w": 128, "h": 81, "name": "Concrete plaza tiles" },
-    { "file": "dirt.png",                  "w": 128, "h": 82, "name": "Bare earth / dirt ground" },
-    { "file": "ground.png",                "w": 128, "h": 81, "name": "Dark earth / dirt ground" }
+    {
+      "file": "asphalt.png",
+      "w": 128,
+      "h": 81,
+      "name": "Plain asphalt road"
+    },
+    {
+      "file": "asphalt_yellow.png",
+      "w": 128,
+      "h": 81,
+      "name": "Asphalt with yellow double lane line"
+    },
+    {
+      "file": "asphalt_yellow_curve.png",
+      "w": 128,
+      "h": 81,
+      "name": "Asphalt with curved yellow lane line"
+    },
+    {
+      "file": "asphalt_dash.png",
+      "w": 128,
+      "h": 81,
+      "name": "Asphalt with white dashed lane line"
+    },
+    {
+      "file": "asphalt_edge.png",
+      "w": 128,
+      "h": 81,
+      "name": "Asphalt with white edge line"
+    },
+    {
+      "file": "asphalt_line.png",
+      "w": 128,
+      "h": 81,
+      "name": "Asphalt with straight white line"
+    },
+    {
+      "file": "asphalt_curb.png",
+      "w": 128,
+      "h": 81,
+      "name": "Asphalt with white curb/edge line"
+    },
+    {
+      "file": "sidewalk.png",
+      "w": 128,
+      "h": 81,
+      "name": "Cobblestone sidewalk / pavement"
+    },
+    {
+      "file": "concrete.png",
+      "w": 128,
+      "h": 81,
+      "name": "Concrete plaza tiles"
+    },
+    {
+      "file": "dirt.png",
+      "w": 128,
+      "h": 82,
+      "name": "Bare earth / dirt ground"
+    },
+    {
+      "file": "ground.png",
+      "w": 128,
+      "h": 81,
+      "name": "Dark earth / dirt ground"
+    },
+    {
+      "file": "asphalt_yellow_b.png",
+      "name": "Yellow line (other axis)",
+      "w": 128,
+      "h": 81
+    },
+    {
+      "file": "asphalt_dash_b.png",
+      "name": "White dash (other axis)",
+      "w": 128,
+      "h": 81
+    }
   ]
 }

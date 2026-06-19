@@ -22,14 +22,17 @@ import { createTextures, type Textures } from './textures';
 import {
   WEAPONS,
   PASSIVES,
+  EVOLUTIONS,
   ENEMIES,
   BOSS,
   baseMods,
   MAX_WEAPONS,
   MAX_PASSIVES,
   type Mods,
-  type WeaponDef,
+  type WeaponContext,
+  type WeaponRuntime,
 } from './data';
+import { behaviors } from './behaviors';
 import { Input } from '../core/input';
 import { SpatialHash } from '../core/spatialHash';
 import { Hud, type LevelOption } from '../ui/hud';
@@ -40,11 +43,7 @@ import { meta } from '../meta/save';
 import { settings } from '../ui/settings';
 import type { Minimap } from '../ui/minimap';
 
-interface WeaponInst {
-  def: WeaponDef;
-  level: number;
-  timer: number;
-  angle: number;
+interface WeaponInst extends WeaponRuntime {
   blades: Sprite[];
 }
 
@@ -84,6 +83,7 @@ export class Game {
   private input = new Input();
   private hash = new SpatialHash(120);
   private cand: number[] = [];
+  private ctx!: WeaponContext;
 
   private spr: (Sprite | undefined)[] = [];
   private freeSprites: Sprite[] = [];
@@ -147,6 +147,7 @@ export class Game {
 
     window.addEventListener('resize', () => this.onResize());
 
+    this.buildContext();
     this.reset();
     app.ticker.add(() => this.frame());
   }
@@ -165,6 +166,59 @@ export class Game {
   private onResize(): void {
     this.bg.width = this.app.screen.width;
     this.bg.height = this.app.screen.height;
+  }
+
+  // Capabilities exposed to weapon behaviors (see behaviors.ts).
+  private buildContext(): void {
+    const self = this;
+    this.ctx = {
+      get px() {
+        return self.player.x;
+      },
+      get py() {
+        return self.player.y;
+      },
+      get fx() {
+        return self.input.facing.x;
+      },
+      get fy() {
+        return self.input.facing.y;
+      },
+      get mods() {
+        return self.mods;
+      },
+      get time() {
+        return self.time;
+      },
+      critRoll: () => self.critRoll(),
+      aimNearest: (range) => {
+        const t = self.nearestEnemy(self.player.x, self.player.y, range);
+        if (t < 0) return null;
+        const dx = Position.x[t] - self.player.x;
+        const dy = Position.y[t] - self.player.y;
+        const d = Math.hypot(dx, dy) || 1;
+        return { x: dx / d, y: dy / d };
+      },
+      forEachInRadius: (x, y, r, cb) => {
+        self.hash.queryRadius(x, y, r, self.cand);
+        for (const e of self.cand) {
+          if (self.dead.has(e)) continue;
+          const dx = Position.x[e] - x;
+          const dy = Position.y[e] - y;
+          cb(e, dx, dy, Math.hypot(dx, dy));
+        }
+      },
+      damage: (eid, dmg, crit) => self.damageEnemy(eid, dmg, crit),
+      knockback: (eid, nx, ny, force) => {
+        Enemy.knx[eid] = nx;
+        Enemy.kny[eid] = ny;
+        Enemy.knock[eid] = force;
+      },
+      spawnProjectile: (x, y, vx, vy, dmg, pierce, crit, radius, color) =>
+        self.spawnProjectile(x, y, vx, vy, dmg, pierce, crit, radius, color),
+      spawnZap: (x1, y1, x2, y2, color) => self.spawnZap(x1, y1, x2, y2, color),
+      spawnRing: (x, y, r, color) => self.spawnNovaRing(x, y, r, color),
+    };
   }
 
   // ---- sprite pooling -------------------------------------------------------
@@ -227,6 +281,7 @@ export class Game {
     pierce: number,
     crit: boolean,
     radius: number,
+    color = 0xffffff,
   ): void {
     const eid = addEntity(this.world);
     addComponent(this.world, Position, eid);
@@ -243,6 +298,8 @@ export class Game {
     Projectile.crit[eid] = crit ? 1 : 0;
     const s = this.acquireSprite(this.tex.projectile);
     s.rotation = Math.atan2(vy, vx);
+    s.tint = color;
+    s.scale.set(radius / 7);
     this.spr[eid] = s;
   }
 
@@ -318,85 +375,18 @@ export class Game {
   }
 
   private fireWeapons(dt: number): void {
-    const p = this.player;
     for (const w of this.weapons) {
+      const h = behaviors[w.def.type];
+      if (!h) continue;
       const s = w.def.stats(w.level);
-      if (w.def.type === 'orbit') {
-        w.angle += 2.4 * dt;
+      if (h.update) h.update(this.ctx, w, s, dt);
+      if (h.fire) {
         w.timer -= dt;
         if (w.timer <= 0) {
-          w.timer += s.cooldown;
-          const orbitR = s.range;
-          this.hash.queryRadius(p.x, p.y, orbitR + s.radius + 28, this.cand);
-          for (const e of this.cand) {
-            if (this.dead.has(e)) continue;
-            const d = Math.hypot(Position.x[e] - p.x, Position.y[e] - p.y);
-            const er = Enemy.radius[e];
-            if (d > orbitR - s.radius - er && d < orbitR + s.radius + er) {
-              this.damageEnemy(e, s.dmg * this.mods.dmgMul, this.critRoll());
-            }
-          }
+          w.timer += Math.max(s.cooldown * this.mods.cdMul, 0.1);
+          h.fire(this.ctx, w, s);
+          if (w.def.type === 'projectile' || w.def.type === 'burst') audio.shoot();
         }
-        continue;
-      }
-
-      w.timer -= dt;
-      if (w.timer > 0) continue;
-      w.timer += Math.max(s.cooldown * this.mods.cdMul, 0.1);
-
-      if (w.def.type === 'projectile') {
-        const tgt = this.nearestEnemy(p.x, p.y, s.range);
-        let dirx = this.input.facing.x;
-        let diry = this.input.facing.y;
-        if (tgt >= 0) {
-          const dx = Position.x[tgt] - p.x;
-          const dy = Position.y[tgt] - p.y;
-          const d = Math.hypot(dx, dy) || 1;
-          dirx = dx / d;
-          diry = dy / d;
-        }
-        const baseA = Math.atan2(diry, dirx);
-        const spread = 0.16;
-        for (let i = 0; i < s.count; i++) {
-          const a = baseA + (i - (s.count - 1) / 2) * spread;
-          this.spawnProjectile(
-            p.x,
-            p.y,
-            Math.cos(a) * s.speed,
-            Math.sin(a) * s.speed,
-            s.dmg * this.mods.dmgMul,
-            s.pierce,
-            this.critRoll(),
-            s.radius,
-          );
-        }
-        audio.shoot();
-      } else if (w.def.type === 'zap') {
-        this.hash.queryRadius(p.x, p.y, s.range, this.cand);
-        const list = this.cand
-          .filter((e) => !this.dead.has(e))
-          .map((e) => ({ e, d: Math.hypot(Position.x[e] - p.x, Position.y[e] - p.y) }))
-          .sort((a, b) => a.d - b.d)
-          .slice(0, s.count);
-        for (const { e } of list) {
-          this.damageEnemy(e, s.dmg * this.mods.dmgMul, this.critRoll());
-          this.spawnZap(p.x, p.y, Position.x[e], Position.y[e]);
-        }
-      } else if (w.def.type === 'nova') {
-        this.hash.queryRadius(p.x, p.y, s.range, this.cand);
-        for (const e of this.cand) {
-          if (this.dead.has(e)) continue;
-          const dx = Position.x[e] - p.x;
-          const dy = Position.y[e] - p.y;
-          const d = Math.hypot(dx, dy) || 1;
-          if (d < s.range + Enemy.radius[e]) {
-            this.damageEnemy(e, s.dmg * this.mods.dmgMul, this.critRoll());
-            Enemy.knx[e] = dx / d;
-            Enemy.kny[e] = dy / d;
-            Enemy.knock[e] = s.knock;
-          }
-        }
-        this.spawnNovaRing(p.x, p.y, s.range, w.def.color);
       }
     }
   }
@@ -420,9 +410,9 @@ export class Game {
     this.dmgNums.push({ t, vy: -46, life: 0.6, max: 0.6 });
   }
 
-  private spawnZap(x1: number, y1: number, x2: number, y2: number): void {
+  private spawnZap(x1: number, y1: number, x2: number, y2: number, color = 0x9be7ff): void {
     const g = new Graphics();
-    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 3, color: 0x9be7ff, alpha: 0.9 });
+    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 3, color, alpha: 0.9 });
     this.worldC.addChild(g);
     this.fx.push({ g, life: 0.12 });
   }
@@ -576,7 +566,7 @@ export class Game {
       const dx = Position.x[e] - p.x;
       const dy = Position.y[e] - p.y;
       if (dx * dx + dy * dy < (p.radius + er) * (p.radius + er)) {
-        p.hp -= Enemy.dmg[e];
+        p.hp -= Enemy.dmg[e] * this.mods.dmgTakenMul;
         p.invuln = C.PLAYER_INVULN;
         audio.playerHurt();
         break;
@@ -639,7 +629,7 @@ export class Game {
         const dx = this.player.x - tg.x;
         const dy = this.player.y - tg.y;
         if (dx * dx + dy * dy < tg.r * tg.r && this.player.invuln <= 0) {
-          this.player.hp -= tg.dmg;
+          this.player.hp -= tg.dmg * this.mods.dmgTakenMul;
           this.player.invuln = C.PLAYER_INVULN;
           audio.playerHurt();
         }
@@ -684,6 +674,34 @@ export class Game {
     if (this.player.hp > this.player.maxHp) this.player.hp = this.player.maxHp;
   }
 
+  // Auto-evolve any maxed weapon whose evolution catalyst is owned.
+  private tryEvolve(): void {
+    for (const w of this.weapons) {
+      if (w.level < w.def.maxLevel) continue;
+      for (const r of EVOLUTIONS) {
+        if (r.base !== w.def.id || this.ownedWeapons.has(r.result)) continue;
+        const have =
+          r.catalyst.kind === 'passive'
+            ? this.passives.has(r.catalyst.id)
+            : this.ownedWeapons.has(r.catalyst.id);
+        if (!have) continue;
+        const evDef = WEAPONS[r.result];
+        if (!evDef) continue;
+        this.ownedWeapons.delete(w.def.id);
+        w.def = evDef;
+        w.level = 1;
+        w.timer = 0;
+        w.angle = 0;
+        this.ownedWeapons.set(evDef.id, w);
+        for (const b of w.blades) b.destroy();
+        w.blades = [];
+        if (evDef.orbit) this.rebuildBlades(w);
+        audio.levelUp();
+        break;
+      }
+    }
+  }
+
   private checkLevelUp(): void {
     if (this.state !== 'play') return;
     if (this.xp >= this.xpNext) this.openLevelUp();
@@ -715,7 +733,7 @@ export class Game {
     }
     if (this.weapons.length < MAX_WEAPONS) {
       for (const id in WEAPONS) {
-        if (!this.ownedWeapons.has(id))
+        if (!this.ownedWeapons.has(id) && !WEAPONS[id].hidden)
           opts.push({ kind: 'weapon-new', id, title: `${WEAPONS[id].name}`, sub: WEAPONS[id].desc, icon: WEAPONS[id].icon });
       }
     }
@@ -757,6 +775,7 @@ export class Game {
         break;
     }
     this.recompute();
+    this.tryEvolve();
     this.xp -= this.xpNext;
     this.level++;
     this.xpNext = C.xpForLevel(this.level);

@@ -15,6 +15,7 @@ export interface Profile {
   totalKills: number;
   totalRuns: number;
   coins: number;
+  equipped: Record<string, string>; // slot -> gear id
 }
 
 /** Stats reported at the end of a single run. */
@@ -27,7 +28,7 @@ export interface RunStats {
 type ChangeListener = (profile: Profile) => void;
 
 const STORAGE_KEY = 'survivor.io:profile';
-const CURRENT_VERSION = 1;
+const CURRENT_VERSION = 2;
 
 /** A fresh, zeroed profile at the current schema version. */
 function defaultProfile(): Profile {
@@ -37,6 +38,7 @@ function defaultProfile(): Profile {
     totalKills: 0,
     totalRuns: 0,
     coins: 0,
+    equipped: {},
   };
 }
 
@@ -70,6 +72,10 @@ function migrate(raw: unknown): Profile {
     totalKills: safeInt(r.totalKills, base.totalKills),
     totalRuns: safeInt(r.totalRuns, base.totalRuns),
     coins: safeInt(r.coins, base.coins),
+    equipped:
+      r.equipped && typeof r.equipped === 'object'
+        ? { ...(r.equipped as Record<string, string>) }
+        : {},
   };
 }
 
@@ -184,6 +190,19 @@ class Meta {
     this.save();
     this.notify();
     return true;
+  }
+
+  /** The equipped gear map (slot -> gear id). Defensive copy. */
+  getEquipped(): Record<string, string> {
+    return { ...this.profile.equipped };
+  }
+
+  /** Equip (or, with null, clear) a gear id in a slot. Persists immediately. */
+  equip(slot: string, id: string | null): void {
+    if (id === null) delete this.profile.equipped[slot];
+    else this.profile.equipped[slot] = id;
+    this.save();
+    this.notify();
   }
 
   /** Wipe all progress back to a fresh profile. */

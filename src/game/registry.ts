@@ -8,6 +8,7 @@ import type {
   EnemyDef,
   CharacterDef,
   StageDef,
+  GearDef,
 } from './types';
 
 export const WEAPONS: Record<string, WeaponDef> = {};
@@ -16,6 +17,7 @@ export const EVOLUTIONS: EvolutionRecipe[] = [];
 export const ENEMY_DEFS: EnemyDef[] = [];
 export const CHARACTERS: Record<string, CharacterDef> = {};
 export const STAGES: StageDef[] = [];
+export const GEAR: Record<string, GearDef> = {};
 
 export function registerWeapon(d: WeaponDef): void {
   WEAPONS[d.id] = d;
@@ -34,4 +36,7 @@ export function registerCharacter(d: CharacterDef): void {
 }
 export function registerStage(d: StageDef): void {
   STAGES.push(d);
+}
+export function registerGear(d: GearDef): void {
+  GEAR[d.id] = d;
 }

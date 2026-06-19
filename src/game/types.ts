@@ -149,3 +149,17 @@ export interface StageDef {
   enemyDmgMul: number;
   tint?: number; // background tint
 }
+
+export const GEAR_SLOTS = ['weapon', 'armor', 'necklace', 'belt', 'gloves', 'boots'] as const;
+export type GearSlot = (typeof GEAR_SLOTS)[number];
+
+// Persistent equipment: one piece per slot grants additive stat deltas at run start.
+export interface GearDef {
+  id: string;
+  name: string;
+  slot: GearSlot;
+  rarity: 'common' | 'rare' | 'epic' | 'legendary';
+  icon: string;
+  desc?: string;
+  mods: Partial<Record<keyof Mods, number>>;
+}

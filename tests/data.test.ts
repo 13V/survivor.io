@@ -5,9 +5,11 @@ import {
   ENEMY_DEFS,
   CHARACTERS,
   STAGES,
+  GEAR,
   baseMods,
   type Mods,
 } from '../src/game/data';
+import { GEAR_SLOTS } from '../src/game/types';
 import { xpForLevel } from '../src/config';
 
 describe('WEAPONS stats(level)', () => {
@@ -157,6 +159,17 @@ describe('STAGES', () => {
       expect(s.spawnRamp).toBeGreaterThanOrEqual(0);
       expect(s.enemyHpMul).toBeGreaterThan(0);
       expect(s.enemyDmgMul).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('GEAR', () => {
+  it('each gear piece has a valid slot and non-empty mods', () => {
+    const all = Object.values(GEAR);
+    expect(all.length).toBeGreaterThan(0);
+    for (const g of all) {
+      expect(GEAR_SLOTS).toContain(g.slot);
+      expect(Object.keys(g.mods).length).toBeGreaterThan(0);
     }
   });
 });

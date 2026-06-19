@@ -11,6 +11,7 @@ import { registerSW, enableTapFullscreen } from './pwa';
 import { CHARACTERS, STAGES } from './game/data';
 import { CharSelect } from './ui/charselect';
 import { StageSelect } from './ui/stageselect';
+import { GearScreen } from './ui/gearscreen';
 
 async function main(): Promise<void> {
   const app = new Application();
@@ -42,6 +43,7 @@ async function main(): Promise<void> {
   minimap.setVisible(false);
   const charSelect = new CharSelect(root, Object.values(CHARACTERS));
   const stageSelect = new StageSelect(root, STAGES);
+  const gearScreen = new GearScreen(root);
 
   new SettingsPanel(root, {
     onPause: () => app.ticker.stop(),
@@ -59,6 +61,7 @@ async function main(): Promise<void> {
     title.hide();
     charSelect.setVisible(false);
     stageSelect.setVisible(false);
+    gearScreen.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
     new Game(app, hud, minimap, charSelect.selected, stageSelect.selected);
@@ -66,6 +69,7 @@ async function main(): Promise<void> {
   title.show();
   charSelect.setVisible(true);
   stageSelect.setVisible(true);
+  gearScreen.setVisible(true);
 }
 
 void main();

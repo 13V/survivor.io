@@ -24,6 +24,7 @@ import {
   PASSIVES,
   EVOLUTIONS,
   ENEMY_DEFS,
+  GEAR,
   baseMods,
   MAX_WEAPONS,
   MAX_PASSIVES,
@@ -725,6 +726,11 @@ export class Game {
     const m = baseMods();
     const cm = this.character.mods;
     if (cm) for (const k of Object.keys(cm) as (keyof Mods)[]) m[k] += cm[k] ?? 0;
+    const eq = meta.getEquipped();
+    for (const slot of Object.keys(eq)) {
+      const g = GEAR[eq[slot]];
+      if (g?.mods) for (const k of Object.keys(g.mods) as (keyof Mods)[]) m[k] += g.mods[k] ?? 0;
+    }
     for (const [id, lvl] of this.passives) PASSIVES[id].apply(lvl, m);
     this.mods = m;
     this.player.maxHp = 100 * m.maxHpMul;

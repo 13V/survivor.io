@@ -19,7 +19,6 @@ import {
 } from 'bitecs';
 import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
 import { createTextures, type Textures } from './textures';
-import { isAssetPackActive } from './assetPack';
 import { Particles } from './particles';
 import {
   WEAPONS,
@@ -168,7 +167,7 @@ export class Game {
     private pet: PetDef | null,
   ) {
     this.tex = createTextures(app.renderer);
-    this.artUpright = isAssetPackActive();
+    this.artUpright = true; // flat top-down cartoon art: upright + mirrored, untinted
     this.bg = new TilingSprite({
       texture: this.makeGroundTexture(),
       width: app.screen.width,

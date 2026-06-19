@@ -16,6 +16,7 @@
 // they stay light/neutral with a white-hot core that survives any tint.
 import { Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
+import { applyAssetPack } from './assetPack';
 
 export interface Textures {
   player: Texture;
@@ -502,7 +503,7 @@ function makeHealGem(renderer: Renderer): Texture {
 }
 
 export function createTextures(renderer: Renderer): Textures {
-  return {
+  const tex: Textures = {
     player: makePlayer(renderer),
     enemy: [
       makeZombie(renderer), // 0 basic green zombie
@@ -519,6 +520,9 @@ export function createTextures(renderer: Renderer): Textures {
       makeHealGem(renderer),                              // 3 heal (red cross)
     ],
   };
+  // Overlay the CC0 art pack onto the character/enemy/boss slots if it loaded.
+  applyAssetPack(renderer, tex);
+  return tex;
 }
 
 // Drop-in: same Textures shape, same createTextures(renderer) signature and the

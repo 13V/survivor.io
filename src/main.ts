@@ -1,6 +1,7 @@
 import './ui/styles.css';
 import { Application } from 'pixi.js';
 import { Game } from './game/Game';
+import { preloadAssetPack } from './game/assetPack';
 import { Hud } from './ui/hud';
 import { TitleScreen } from './ui/menu';
 import { SettingsPanel } from './ui/settings';
@@ -27,6 +28,10 @@ async function main(): Promise<void> {
   const root = document.getElementById('app');
   if (!root) throw new Error('#app not found');
   root.appendChild(app.canvas);
+
+  // Load the CC0 art pack (Kenney top-down shooter) once before any run starts;
+  // procedural art is the fallback if it fails.
+  await preloadAssetPack();
 
   registerSW();
   enableTapFullscreen();

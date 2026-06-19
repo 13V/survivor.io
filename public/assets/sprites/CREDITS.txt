@@ -1,0 +1,16 @@
+In-game character, enemy and boss sprites are from the "Topdown Shooter" pack
+by Kenney (https://kenney.nl), released under Creative Commons Zero (CC0 1.0):
+https://creativecommons.org/publicdomain/zero/1.0/
+
+CC0 means these assets are public domain and free for personal and commercial
+use. Crediting Kenney is appreciated but not required.
+
+Mapped into the game (baked to match each procedural slot at load time):
+  player.png  <- Survivor 1 / survivor1_machine
+  enemy0.png  <- Zombie 1   / zoimbie1_stand   (basic)
+  enemy1.png  <- Hitman 1   / hitman1_hold     (fast)
+  enemy2.png  <- Robot 1    / robot1_stand     (tank)
+  boss.png    <- Robot 1    / robot1_machine   (boss)
+
+Projectiles, blades, gems and the ground remain procedurally generated.
+If these PNGs are removed, the game falls back to procedural art automatically.

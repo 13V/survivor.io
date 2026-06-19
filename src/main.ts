@@ -2,6 +2,7 @@ import './ui/styles.css';
 import { Application } from 'pixi.js';
 import { Game } from './game/Game';
 import { preloadAssetPack } from './game/assetPack';
+import { preloadSurvivor } from './game/survivorSprite';
 import { Hud } from './ui/hud';
 import { TitleScreen } from './ui/menu';
 import { SettingsPanel } from './ui/settings';
@@ -32,6 +33,8 @@ async function main(): Promise<void> {
   // Load the CC0 art pack (Kenney top-down shooter) once before any run starts;
   // procedural art is the fallback if it fails.
   await preloadAssetPack();
+  // 8-direction HD survivor player sheets (falls back to procedural hero if absent).
+  await preloadSurvivor();
 
   registerSW();
   enableTapFullscreen();

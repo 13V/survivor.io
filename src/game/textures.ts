@@ -7,6 +7,8 @@ import { Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
 import { applyAssetPack, buildAnimPack } from './assetPack';
 import type { AnimPack } from './assetPack';
+import { buildSurvivor } from './survivorSprite';
+import type { SurvivorSprite } from './survivorSprite';
 
 export interface Textures {
   player: Texture;
@@ -17,6 +19,8 @@ export interface Textures {
   gem: Texture[]; // 0 green, 1 blue, 2 gold, 3 heal
   // Best-effort animation + scenery layer from the art pack (null in procedural mode).
   anim?: AnimPack | null;
+  // 8-direction HD survivor player sprite (null if its sheets weren't loaded).
+  survivor?: SurvivorSprite | null;
 }
 
 // Bake a Graphics into a texture and clean it up. All builders funnel through here.
@@ -320,5 +324,6 @@ export function createTextures(renderer: Renderer): Textures {
     tex.gem[1] = tex.anim.money;
     tex.gem[2] = tex.anim.money;
   }
+  tex.survivor = buildSurvivor();
   return tex;
 }

@@ -1,14 +1,19 @@
-Enemy sprites (the zombie horde across all three kinds + boss) are an animated
-pixel-art zombie supplied by the project owner as an Aseprite file (Zombie.aseprite).
-Its Run-cycle frames (8) were extracted to PNGs and drive an 8-frame walk animation:
-  enemy0/1/2.png, boss.png  <- Run frame 0 (static base)
-  z0_*/z1_*/z2_*.png         <- Run cycle frames 0-7
+PLAYER: HD "Survivor" character (true 8-direction top-down) from the supplied pack
+"FREE Character HD Survivor W Bike". Each animation is a 14-frame x 8-direction grid of
+128px cells, sliced at runtime into directional rows (src/game/survivorSprite.ts). The
+player faces its aim direction (nearest enemy, else movement) by picking the matching
+direction row -- no flipping. States in use: Idle, Run, TakeDamage. Die + the bike
+(RideIdle/RideRun) sheets are also loaded for upcoming death / dash states. Sheets live
+in assets/sprites/survivor/.
 
-The player hero, projectiles, blades, gems and the flat mauve ground are procedurally
-generated at runtime (flat survivor.io-style cartoon) in src/game/textures.ts.
+ENEMIES: animated pixel-art zombie (Run cycle) from the supplied Zombie.aseprite, used
+for all enemy kinds + boss (z0/z1/z2 frames). NOTE: the pixel enemies do not yet match
+the HD player visually -- enemy art is a pending decision (e.g. build matching HD enemies
+from the modular character creator).
 
-The loader (src/game/assetPack.ts) overrides each character slot independently, so any
-slot without a PNG falls back to its procedural art. Sprites are nearest-filtered.
+OTHER: projectiles, blades, gems and the flat mauve ground are procedurally generated
+(src/game/textures.ts). The procedural cartoon hero remains the fallback if the survivor
+sheets are absent. Filtering: survivor = linear, zombie = nearest.
 
 History note: earlier third-party art was used during development and removed; it still
 exists in git history, so keep this repository private until the history is scrubbed if

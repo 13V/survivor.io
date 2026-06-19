@@ -19,6 +19,7 @@ import {
 } from 'bitecs';
 import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
 import { createTextures, type Textures } from './textures';
+import { dirRow, type SurvivorSprite, type DirAnim } from './survivorSprite';
 import { Particles } from './particles';
 import {
   WEAPONS,
@@ -154,6 +155,9 @@ export class Game {
   private prevPx = 0;
   private prevPy = 0;
   private playerWalk: Texture[] | null = null;
+  // 8-direction HD survivor player: faces aim, switches idle/run/hit. null = procedural.
+  private survivor: SurvivorSprite | null = null;
+  private survFacing = Math.PI / 2; // start facing down (south)
   private enemyWalk: (Texture[] | undefined)[] = [];
   private animFx: { s: Sprite; frames: Texture[]; t: number; dur: number }[] = [];
   private fxPool: Sprite[] = [];
@@ -189,6 +193,8 @@ export class Game {
 
     this.worldC.addChild(this.fxC); // hit / death FX render above the cast
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
+    this.survivor = this.tex.survivor ?? null;
+    if (this.survivor) this.playerSprite.anchor.set(0.5, 0.6); // feet near the ground point
 
     window.addEventListener('resize', () => this.onResize());
 
@@ -1275,6 +1281,38 @@ export class Game {
     this.checkEnd();
   }
 
+  // Drive the 8-direction HD survivor sprite: face the aim direction (nearest enemy,
+  // else movement), choose idle/run/hit, and advance the correct frame. No horizontal
+  // flipping — the 8 directional rows already carry facing.
+  private updateSurvivorSprite(): void {
+    const sv = this.survivor!;
+    const p = this.player;
+    const s = this.playerSprite;
+    const t = this.nearestEnemy(p.x, p.y, 1000);
+    if (t >= 0) this.survFacing = Math.atan2(Position.y[t] - p.y, Position.x[t] - p.x);
+    else if (this.input.dir.x || this.input.dir.y)
+      this.survFacing = Math.atan2(this.input.dir.y, this.input.dir.x);
+    const row = dirRow(this.survFacing);
+
+    const moving = Math.abs(p.x - this.prevPx) + Math.abs(p.y - this.prevPy) > 0.02;
+    this.prevPx = p.x;
+    this.prevPy = p.y;
+
+    const sinceHit = C.PLAYER_INVULN - p.invuln; // seconds since last damage
+    let anim: DirAnim;
+    let frame: number;
+    if (p.invuln > 0 && sinceHit < sv.hit.count / sv.hit.fps) {
+      anim = sv.hit;
+      frame = Math.min(anim.count - 1, Math.floor(sinceHit * anim.fps));
+    } else {
+      anim = moving ? sv.run : sv.idle;
+      frame = Math.floor(this.time * anim.fps) % anim.count;
+    }
+    s.texture = anim.frames[row][frame];
+    s.scale.set(1.15); // 128px cell -> ~46px figure; tune for desired hero size
+    s.alpha = p.invuln > 0 ? 0.6 : 1;
+  }
+
   private render(): void {
     const p = this.player;
     const sh = settings.reduceMotion ? 0 : this.shakeMag;
@@ -1285,21 +1323,25 @@ export class Game {
     this.bg.tilePosition.set(-p.x + ox, -p.y + oy);
 
     this.playerSprite.position.set(p.x, p.y);
-    this.playerSprite.alpha = p.invuln > 0 ? 0.55 : 1;
-    if (this.artUpright) {
-      // upright top-down art: keep level, mirror horizontally by aim direction
-      const fx = this.input.facing.x;
-      if (fx < -0.01) this.playerSprite.scale.x = -Math.abs(this.playerSprite.scale.x);
-      else if (fx > 0.01) this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x);
-    }
-    if (this.playerWalk) {
-      // Cycle the walk frames while moving; rest on frame 0 when standing still.
-      const moving = Math.abs(p.x - this.prevPx) + Math.abs(p.y - this.prevPy) > 0.02;
-      this.prevPx = p.x;
-      this.prevPy = p.y;
-      this.playerSprite.texture = moving
-        ? this.playerWalk[this.animFrame % this.playerWalk.length]
-        : this.playerWalk[0];
+    if (this.survivor) {
+      this.updateSurvivorSprite();
+    } else {
+      this.playerSprite.alpha = p.invuln > 0 ? 0.55 : 1;
+      if (this.artUpright) {
+        // upright top-down art: keep level, mirror horizontally by aim direction
+        const fx = this.input.facing.x;
+        if (fx < -0.01) this.playerSprite.scale.x = -Math.abs(this.playerSprite.scale.x);
+        else if (fx > 0.01) this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x);
+      }
+      if (this.playerWalk) {
+        // Cycle the walk frames while moving; rest on frame 0 when standing still.
+        const moving = Math.abs(p.x - this.prevPx) + Math.abs(p.y - this.prevPy) > 0.02;
+        this.prevPx = p.x;
+        this.prevPy = p.y;
+        this.playerSprite.texture = moving
+          ? this.playerWalk[this.animFrame % this.playerWalk.length]
+          : this.playerWalk[0];
+      }
     }
     if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
 

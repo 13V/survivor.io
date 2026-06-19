@@ -338,8 +338,8 @@ export class Game {
   // yellow centre lines; sidewalks border them; block interiors are concrete (where buildings
   // sit). Deterministic in (col,row) so the city is consistent as the camera streams.
   private cityCell(col: number, row: number): string {
-    const B = 13; // block period in tiles
-    const RW = 3; // road half-zone width
+    const B = 14; // block period in tiles
+    const RW = 4; // road width (wider avenues so the streets read + the horde funnels)
     const cx = ((col % B) + B) % B;
     const cy = ((row % B) + B) % B;
     const onColRoad = cx < RW;
@@ -356,6 +356,24 @@ export class Game {
     const m = this.isoMap;
     if (!Object.keys(m).length) return this.diamondTex!;
     return m[this.cityCell(col, row)] ?? m.asphalt ?? this.diamondTex!;
+  }
+
+  // Building footprints (block interiors) are solid: the cast can only walk the streets +
+  // sidewalks, so the horde funnels down the avenues instead of clipping through/onto roofs.
+  private blockedCity(wx: number, wy: number): boolean {
+    if (!this.env) return false;
+    return this.cityCell(Math.round(wx / ISO_TILE), Math.round(wy / ISO_TILE)) === 'concrete';
+  }
+
+  // Move from (x,y) by (mx,my), sliding along building walls; returns the new [x,y].
+  // If already inside a block (spawned/knocked in), move freely so nothing gets stuck.
+  private slideMove(x: number, y: number, mx: number, my: number): [number, number] {
+    if (this.blockedCity(x, y)) return [x + mx, y + my];
+    let nx = x;
+    let ny = y;
+    if (!this.blockedCity(x + mx, y)) nx = x + mx;
+    if (!this.blockedCity(nx, y + my)) ny = y + my;
+    return [nx, ny];
   }
 
   // Re-lay the iso ground tiles covering the viewport, centered on the player's tile.
@@ -494,7 +512,7 @@ export class Game {
 
     // --- structured city: buildings fill the block interiors; roads stay clear so the
     // horde funnels down the streets, vehicles sit on the asphalt, clutter on sidewalks. ---
-    const B = 13;
+    const B = 14;
     const TILE = ISO_TILE;
     const NB = 3; // city blocks in each direction around spawn
     const span = NB * B;
@@ -517,12 +535,13 @@ export class Game {
     if (buildings.length) {
       for (let bc = -NB; bc <= NB; bc++) {
         for (let br = -NB; br <= NB; br++) {
-          for (let gx = 4; gx <= 11; gx += 3) {
-            for (let gy = 4; gy <= 11; gy += 3) {
-              if (Math.random() < 0.12) continue; // occasional courtyard gap
+          for (let gx = 5; gx <= 12; gx += 3) {
+            for (let gy = 5; gy <= 12; gy += 3) {
               const cc = bc * B + gx;
               const rr = br * B + gy;
-              addAt(buildings[(Math.random() * buildings.length) | 0], cc * TILE, rr * TILE, 0.9, 0.92 + Math.random() * 0.26);
+              // exact grid scale (1.0) so every building aligns to the iso ground — no
+              // random scaling, which is what made them look slapped together.
+              addAt(buildings[(Math.random() * buildings.length) | 0], cc * TILE, rr * TILE, 0.9, 1.0);
             }
           }
         }
@@ -1046,15 +1065,18 @@ export class Game {
       this.addShake(5);
     }
 
+    let mvx = 0;
+    let mvy = 0;
     if (p.dashT > 0) {
       p.dashT = Math.max(0, p.dashT - dt);
-      p.x += p.dashDx * DASH_SPEED * dt;
-      p.y += p.dashDy * DASH_SPEED * dt;
+      mvx = p.dashDx * DASH_SPEED * dt;
+      mvy = p.dashDy * DASH_SPEED * dt;
     } else {
       const sp = p.moveSpeed * this.mods.moveMul;
-      p.x += this.input.dir.x * sp * dt;
-      p.y += this.input.dir.y * sp * dt;
+      mvx = this.input.dir.x * sp * dt;
+      mvy = this.input.dir.y * sp * dt;
     }
+    [p.x, p.y] = this.slideMove(p.x, p.y, mvx, mvy); // slide along building walls
     p.x = Math.max(-C.ARENA_HALF, Math.min(C.ARENA_HALF, p.x));
     p.y = Math.max(-C.ARENA_HALF, Math.min(C.ARENA_HALF, p.y));
     p.invuln = Math.max(0, p.invuln - dt);
@@ -1095,9 +1117,16 @@ export class Game {
         }
       }
     }
-    const ang = rand(0, Math.PI * 2);
     const R = Math.max(this.app.screen.width, this.app.screen.height) / 2 + 90;
-    this.spawnEnemy(kind, this.player.x + Math.cos(ang) * R, this.player.y + Math.sin(ang) * R);
+    let sx = this.player.x;
+    let sy = this.player.y;
+    for (let tries = 0; tries < 8; tries++) {
+      const ang = rand(0, Math.PI * 2);
+      sx = this.player.x + Math.cos(ang) * R;
+      sy = this.player.y + Math.sin(ang) * R;
+      if (!this.blockedCity(sx, sy)) break; // spawn on a street, not inside a building
+    }
+    this.spawnEnemy(kind, sx, sy);
   }
 
   private bossCheck(): void {
@@ -1129,8 +1158,9 @@ export class Game {
       // Hold position briefly on spawn while the WakeUp emerge animation plays.
       const waking = this.enemyZ[e] !== undefined && this.time - this.enemySpawnT[e] < WAKE_DUR;
       if (!waking) {
-        Position.x[e] += (dx / d) * Enemy.speed[e] * dt;
-        Position.y[e] += (dy / d) * Enemy.speed[e] * dt;
+        const [nx, ny] = this.slideMove(Position.x[e], Position.y[e], (dx / d) * Enemy.speed[e] * dt, (dy / d) * Enemy.speed[e] * dt);
+        Position.x[e] = nx;
+        Position.y[e] = ny;
       }
       if (this.enemyHitT[e] > 0) this.enemyHitT[e] -= dt;
       // Occasional Taunt roar when not crowding the player.

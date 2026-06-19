@@ -103,8 +103,14 @@ export async function preloadEnv(): Promise<void> {
       }
     })(),
     (async () => {
-      const man = (await manifest('buildings2')) as { tiles?: { file: string }[] } | null;
-      if (man?.tiles) buildings2 = await loadList(man.tiles.map((t) => `buildings2/${t.file}`));
+      // Prefer the consistent regenerated set (buildings_v2); fall back to the first pass.
+      let dir = 'buildings_v2';
+      let man = (await manifest(dir)) as { tiles?: { file: string }[] } | null;
+      if (!man?.tiles) {
+        dir = 'buildings2';
+        man = (await manifest(dir)) as { tiles?: { file: string }[] } | null;
+      }
+      if (man?.tiles) buildings2 = await loadList(man.tiles.map((t) => `${dir}/${t.file}`));
     })(),
     ...EXTRA_CATS.map(async (c) => {
       const man = (await manifest(c)) as { tiles?: { file: string }[] } | null;

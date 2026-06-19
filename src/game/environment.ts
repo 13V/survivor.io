@@ -19,6 +19,8 @@ export interface EnvAssets {
   firebarrel: Texture[]; // flaming-barrel loop
   isoground: Record<string, Texture>; // named iso street tiles (asphalt/asphalt_yellow/sidewalk/...)
   isoMeta: { diamondW: number; diamondH: number; apexX: number; apexY: number } | null;
+  buildings2: Texture[]; // composed complete iso buildings (walls + roof + detail), placed as blocks
+  extras: Record<string, Texture[]>; // street furniture categories: railing, lamps, signs, rooftop, bins, ...
 }
 
 const TILE_CATS = ['ground', 'buildings', 'decals', 'detail', 'cars', 'objects', 'flora', 'street'] as const;
@@ -28,6 +30,9 @@ let muzzle: Texture[] = [];
 let firebarrel: Texture[] = [];
 const isoground: Record<string, Texture> = {};
 let isoMeta: EnvAssets['isoMeta'] = null;
+let buildings2: Texture[] = [];
+const extras: Record<string, Texture[]> = {};
+const EXTRA_CATS = ['railing', 'lamps', 'signs', 'rooftop', 'bins', 'rubble', 'furniture', 'struct', 'traffic', 'trees', 'graffiti', 'roaddetail', 'taxi', 'sedan'];
 
 function url(p: string): string {
   const base = typeof document !== 'undefined' ? document.baseURI : '/';
@@ -97,6 +102,14 @@ export async function preloadEnv(): Promise<void> {
         );
       }
     })(),
+    (async () => {
+      const man = (await manifest('buildings2')) as { tiles?: { file: string }[] } | null;
+      if (man?.tiles) buildings2 = await loadList(man.tiles.map((t) => `buildings2/${t.file}`));
+    })(),
+    ...EXTRA_CATS.map(async (c) => {
+      const man = (await manifest(c)) as { tiles?: { file: string }[] } | null;
+      extras[c] = man?.tiles ? await loadList(man.tiles.map((t) => `${c}/${t.file}`)) : [];
+    }),
   ]);
 }
 
@@ -120,5 +133,7 @@ export function buildEnv(): EnvAssets | null {
     firebarrel,
     isoground,
     isoMeta,
+    buildings2,
+    extras,
   };
 }

@@ -1,0 +1,48 @@
+{
+  "description": "Isometric car sprites extracted from the Car* family (Isometric Tiles pack). 6 distinct vehicles, 4 directions each (s/e/n/w). The yellow TAXI (source Car5) is intentionally excluded.",
+  "directions": ["s", "e", "n", "w"],
+  "cars": [
+    {
+      "id": "car1",
+      "source": "Car2",
+      "type": "sedan",
+      "color": "olive green",
+      "dirs": { "s": "car1_s.png", "e": "car1_e.png", "n": "car1_n.png", "w": "car1_w.png" }
+    },
+    {
+      "id": "car2",
+      "source": "Car6",
+      "type": "sedan (police cruiser)",
+      "color": "weathered white / light gray",
+      "dirs": { "s": "car2_s.png", "e": "car2_e.png", "n": "car2_n.png", "w": "car2_w.png" }
+    },
+    {
+      "id": "car3",
+      "source": "Car7",
+      "type": "sedan",
+      "color": "navy blue",
+      "dirs": { "s": "car3_s.png", "e": "car3_e.png", "n": "car3_n.png", "w": "car3_w.png" }
+    },
+    {
+      "id": "car4",
+      "source": "Car9",
+      "type": "SUV / wagon",
+      "color": "green",
+      "dirs": { "s": "car4_s.png", "e": "car4_e.png", "n": "car4_n.png", "w": "car4_w.png" }
+    },
+    {
+      "id": "car5",
+      "source": "Car10",
+      "type": "van",
+      "color": "black with yellow hazard accents",
+      "dirs": { "s": "car5_s.png", "e": "car5_e.png", "n": "car5_n.png", "w": "car5_w.png" }
+    },
+    {
+      "id": "car6",
+      "source": "Car12",
+      "type": "box truck / van",
+      "color": "green camouflage",
+      "dirs": { "s": "car6_s.png", "e": "car6_e.png", "n": "car6_n.png", "w": "car6_w.png" }
+    }
+  ]
+}

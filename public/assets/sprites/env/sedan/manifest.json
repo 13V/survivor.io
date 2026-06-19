@@ -1,0 +1,28 @@
+{
+  "tiles": [
+    {
+      "file": "sedan_s.png",
+      "w": 204,
+      "h": 105,
+      "name": "sedan_s"
+    },
+    {
+      "file": "sedan_e.png",
+      "w": 127,
+      "h": 137,
+      "name": "sedan_e"
+    },
+    {
+      "file": "sedan_n.png",
+      "w": 205,
+      "h": 108,
+      "name": "sedan_n"
+    },
+    {
+      "file": "sedan_w.png",
+      "w": 127,
+      "h": 136,
+      "name": "sedan_w"
+    }
+  ]
+}

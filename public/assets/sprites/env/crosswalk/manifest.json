@@ -1,0 +1,12 @@
+{
+  "diamondW": 128,
+  "diamondH": 64,
+  "apexX": 64,
+  "apexY": 0,
+  "note": "Zebra crosswalk + stop-line iso ground tiles. COMPOSED from isoground/asphalt.png (128x81) by painting white iso markings onto the diamond TOP face only (apex (64,0), left (0,32), right (128,32), bottom (64,64)); the extruded asphalt sides below y=32 are left untouched. Markings lie flat on the iso plane (stripe edges parallel to a diamond edge at the 2:1 slope), never vertical. Same diamond format/metrics as env/isoground. zebra_s and zebra_e are the two perpendicular crosswalk orientations (stripes parallel to opposite diamond edges).",
+  "tiles": [
+    { "file": "zebra_s.png",  "w": 128, "h": 81, "name": "Zebra crosswalk, stripes parallel to the right (apex->right) diamond edge" },
+    { "file": "zebra_e.png",  "w": 128, "h": 81, "name": "Zebra crosswalk, stripes parallel to the left (apex->left) diamond edge (perpendicular orientation)" },
+    { "file": "stopline.png", "w": 128, "h": 81, "name": "Solid white stop-line bar across the asphalt, flat on the diamond top" }
+  ]
+}

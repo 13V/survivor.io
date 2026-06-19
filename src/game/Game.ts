@@ -510,51 +510,68 @@ export class Game {
     };
     const randCell = (): number => ((Math.random() * (2 * span)) | 0) - span;
 
-    if (env.buildings.length) {
-      const lo = 4;
-      const hi = B - 2; // interior cells 4..11 (roads occupy 0..2, sidewalk at 3)
+    const ex = env.extras;
+    // composed multi-storey buildings (fallback to single facades) packed into block
+    // interiors on a 3-cell grid so each block is a solid mass with streets around it.
+    const buildings = env.buildings2.length ? env.buildings2 : env.buildings;
+    if (buildings.length) {
       for (let bc = -NB; bc <= NB; bc++) {
         for (let br = -NB; br <= NB; br++) {
-          const nb = 3 + ((Math.random() * 3) | 0);
-          for (let k = 0; k < nb; k++) {
-            const cc = bc * B + lo + ((Math.random() * (hi - lo + 1)) | 0);
-            const rr = br * B + lo + ((Math.random() * (hi - lo + 1)) | 0);
-            addAt(env.buildings[(Math.random() * env.buildings.length) | 0], cc * TILE, rr * TILE, 0.84, 1.25 + Math.random() * 0.6);
+          for (let gx = 4; gx <= 11; gx += 3) {
+            for (let gy = 4; gy <= 11; gy += 3) {
+              if (Math.random() < 0.12) continue; // occasional courtyard gap
+              const cc = bc * B + gx;
+              const rr = br * B + gy;
+              addAt(buildings[(Math.random() * buildings.length) | 0], cc * TILE, rr * TILE, 0.9, 0.92 + Math.random() * 0.26);
+            }
           }
         }
       }
     }
-    if (env.cars.length) {
-      for (let i = 0; i < 40; i++) {
+    // place N props on cells of a given surface type (roads vs sidewalks)
+    const onCells = (type: string, n: number, texs: Texture[] | undefined, anchorY: number, smin: number, smax: number): void => {
+      if (!texs || !texs.length) return;
+      let placed = 0;
+      let tries = 0;
+      while (placed < n && tries < n * 12) {
+        tries++;
         const cc = randCell();
         const rr = randCell();
-        if (this.cityCell(cc, rr) !== 'asphalt') continue;
-        addAt(env.cars[(Math.random() * env.cars.length) | 0], cc * TILE, rr * TILE, 0.86, 0.95 + Math.random() * 0.25);
-      }
-    }
-    const clutter = [...env.objects, ...env.street, ...env.flora];
-    if (clutter.length) {
-      for (let i = 0; i < 150; i++) {
-        const cc = randCell();
-        const rr = randCell();
-        const cell = this.cityCell(cc, rr);
-        if (cell === 'asphalt' || cell === 'asphalt_yellow') continue; // keep the road clear
-        addAt(
-          clutter[(Math.random() * clutter.length) | 0],
-          cc * TILE + (Math.random() * 50 - 25),
-          rr * TILE + (Math.random() * 50 - 25),
-          0.9,
-          0.55 + Math.random() * 0.4,
+        if (this.cityCell(cc, rr) !== type) continue;
+        const s = addAt(
+          texs[(Math.random() * texs.length) | 0],
+          cc * TILE + (Math.random() * 30 - 15),
+          rr * TILE + (Math.random() * 30 - 15),
+          anchorY,
+          smin + Math.random() * (smax - smin),
         );
+        if (s) placed++;
       }
-    }
+    };
+    const cars = [...(ex.taxi ?? []), ...(ex.sedan ?? []), ...env.cars];
+    onCells('asphalt', 26, cars, 0.88, 0.95, 1.15); // wrecks on the road
+    onCells('asphalt', 16, ex.rubble, 0.9, 0.7, 1.0);
+    onCells('sidewalk', 34, ex.railing, 0.9, 0.95, 1.1); // guardrails line the sidewalks
+    onCells('sidewalk', 18, ex.lamps, 0.95, 0.9, 1.05);
+    onCells('sidewalk', 12, ex.traffic, 0.95, 0.9, 1.05);
+    onCells('sidewalk', 14, ex.signs, 0.92, 0.8, 1.0);
+    onCells('sidewalk', 16, ex.bins, 0.9, 0.75, 0.95);
+    onCells('sidewalk', 16, ex.furniture, 0.9, 0.7, 0.95);
+    onCells('sidewalk', 18, ex.trees, 0.95, 0.85, 1.15);
+    onCells('sidewalk', 14, [...(ex.rubble ?? []), ...env.objects], 0.9, 0.6, 0.9);
     if (env.firebarrel.length) {
-      for (let i = 0; i < 10; i++) {
+      let placed = 0;
+      let tries = 0;
+      while (placed < 8 && tries < 90) {
+        tries++;
         const cc = randCell();
         const rr = randCell();
         if (this.cityCell(cc, rr) !== 'sidewalk') continue;
         const s = addAt(env.firebarrel[0], cc * TILE, rr * TILE, 0.9, 0.9);
-        if (s) this.fireBarrels.push({ s, t: Math.random() * 10 });
+        if (s) {
+          this.fireBarrels.push({ s, t: Math.random() * 10 });
+          placed++;
+        }
       }
     }
   }

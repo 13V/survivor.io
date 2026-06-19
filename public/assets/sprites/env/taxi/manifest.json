@@ -1,0 +1,28 @@
+{
+  "tiles": [
+    {
+      "file": "taxi_s.png",
+      "w": 211,
+      "h": 175,
+      "name": "taxi_s"
+    },
+    {
+      "file": "taxi_e.png",
+      "w": 211,
+      "h": 181,
+      "name": "taxi_e"
+    },
+    {
+      "file": "taxi_n.png",
+      "w": 232,
+      "h": 181,
+      "name": "taxi_n"
+    },
+    {
+      "file": "taxi_w.png",
+      "w": 232,
+      "h": 175,
+      "name": "taxi_w"
+    }
+  ]
+}

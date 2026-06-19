@@ -3,47 +3,47 @@
     {
       "file": "building_brick_3x3_f2.png",
       "w": 384,
-      "h": 595
+      "h": 611
     },
     {
       "file": "building_brick_4x3_f1.png",
       "w": 448,
-      "h": 498
+      "h": 514
     },
     {
       "file": "building_brick_4x4_f2.png",
       "w": 512,
-      "h": 627
+      "h": 643
     },
     {
       "file": "building_concrete_3x3_f1.png",
       "w": 384,
-      "h": 498
+      "h": 514
     },
     {
       "file": "building_concrete_4x4_f2.png",
       "w": 512,
-      "h": 595
+      "h": 611
     },
     {
       "file": "building_concrete_3x4_f2.png",
       "w": 448,
-      "h": 627
+      "h": 643
     },
     {
       "file": "building_dark_4x3_f2.png",
       "w": 448,
-      "h": 659
+      "h": 675
     },
     {
       "file": "building_dark_3x4_f1.png",
       "w": 448,
-      "h": 466
+      "h": 482
     },
     {
       "file": "building_dark_4x4_f1.png",
       "w": 512,
-      "h": 562
+      "h": 578
     }
   ]
 }

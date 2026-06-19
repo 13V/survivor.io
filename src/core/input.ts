@@ -14,6 +14,7 @@ export interface JoyState {
 export class Input {
   private keys = new Set<string>();
   private pointerId = -1;
+  private dashQueued = false;
   joy: JoyState = { active: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 };
   /** Normalized direction; magnitude 0..1. */
   dir = { x: 0, y: 0 };
@@ -22,7 +23,12 @@ export class Input {
   enabled = true;
 
   constructor() {
-    window.addEventListener('keydown', (e) => this.keys.add(e.key.toLowerCase()));
+    window.addEventListener('keydown', (e) => {
+      const k = e.key.toLowerCase();
+      this.keys.add(k);
+      // Space / Shift trigger a dash (edge-triggered: ignore auto-repeat).
+      if (!e.repeat && (k === ' ' || k === 'shift') && this.enabled) this.dashQueued = true;
+    });
     window.addEventListener('keyup', (e) => this.keys.delete(e.key.toLowerCase()));
     window.addEventListener('pointerdown', this.onDown, { passive: false });
     window.addEventListener('pointermove', this.onMove, { passive: false });
@@ -55,6 +61,18 @@ export class Input {
     this.pointerId = -1;
     this.joy.active = false;
   };
+
+  /** Queue a dash (on-screen button or keypress); consumed by the game next step. */
+  queueDash(): void {
+    if (this.enabled) this.dashQueued = true;
+  }
+
+  /** Returns true once per queued dash, then clears the request. */
+  consumeDash(): boolean {
+    const d = this.dashQueued;
+    this.dashQueued = false;
+    return d;
+  }
 
   /** Recompute `dir` from current inputs. */
   update(): void {

@@ -87,6 +87,11 @@ const ENEMY_BASE_R = [16, 13, 24, 58];
 // Walk-cycle / FX playback rate for the art-pack animation layer (frames per second).
 const ANIM_FPS = 9;
 
+// Bike dash ability (HD survivor only): a short fast hop with i-frames, on a cooldown.
+const DASH_DUR = 0.32; // seconds astride the bike
+const DASH_CD = 2.2; // cooldown seconds
+const DASH_SPEED = 720; // px/s during the dash (~3x walk)
+
 export class Game {
   private world: IWorld = createWorld();
   private tex: Textures;
@@ -119,6 +124,10 @@ export class Game {
     moveSpeed: 230,
     invuln: 0,
     radius: C.PLAYER_RADIUS,
+    dashT: 0, // remaining dash time (s); >0 while on the bike
+    dashCd: 0, // remaining cooldown (s)
+    dashDx: 1, // dash direction (unit)
+    dashDy: 0,
   };
   private mods: Mods = baseMods();
   private weapons: WeaponInst[] = [];
@@ -141,6 +150,7 @@ export class Game {
   private shakeMag = 0;
   private hitstop = 0;
   private flashEl!: HTMLDivElement;
+  private dashBtn: HTMLDivElement | null = null;
   private petSprite!: Sprite;
   private petPos = { x: 0, y: 0 };
   private petAngle = 0;
@@ -194,7 +204,10 @@ export class Game {
     this.worldC.addChild(this.fxC); // hit / death FX render above the cast
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
     this.survivor = this.tex.survivor ?? null;
-    if (this.survivor) this.playerSprite.anchor.set(0.5, 0.6); // feet near the ground point
+    if (this.survivor) {
+      this.playerSprite.anchor.set(0.5, 0.6); // feet near the ground point
+      this.createDashButton();
+    }
 
     window.addEventListener('resize', () => this.onResize());
 
@@ -619,9 +632,32 @@ export class Game {
   // ---- per-step systems -----------------------------------------------------
   private movePlayer(dt: number): void {
     const p = this.player;
-    const sp = p.moveSpeed * this.mods.moveMul;
-    p.x += this.input.dir.x * sp * dt;
-    p.y += this.input.dir.y * sp * dt;
+    p.dashCd = Math.max(0, p.dashCd - dt);
+    // Start a bike dash on request (off cooldown, not already dashing).
+    if (this.survivor && p.dashT <= 0 && p.dashCd <= 0 && this.input.consumeDash()) {
+      let dx = this.input.dir.x;
+      let dy = this.input.dir.y;
+      if (dx === 0 && dy === 0) {
+        dx = this.input.facing.x; // idle: dash along last travel heading
+        dy = this.input.facing.y;
+      }
+      const m = Math.hypot(dx, dy) || 1;
+      p.dashDx = dx / m;
+      p.dashDy = dy / m;
+      p.dashT = DASH_DUR;
+      p.dashCd = DASH_CD;
+      this.addShake(5);
+    }
+
+    if (p.dashT > 0) {
+      p.dashT = Math.max(0, p.dashT - dt);
+      p.x += p.dashDx * DASH_SPEED * dt;
+      p.y += p.dashDy * DASH_SPEED * dt;
+    } else {
+      const sp = p.moveSpeed * this.mods.moveMul;
+      p.x += this.input.dir.x * sp * dt;
+      p.y += this.input.dir.y * sp * dt;
+    }
     p.x = Math.max(-C.ARENA_HALF, Math.min(C.ARENA_HALF, p.x));
     p.y = Math.max(-C.ARENA_HALF, Math.min(C.ARENA_HALF, p.y));
     p.invuln = Math.max(0, p.invuln - dt);
@@ -798,7 +834,7 @@ export class Game {
         const dyp = this.player.y - py;
         const rr = pr + this.player.radius;
         if (dxp * dxp + dyp * dyp < rr * rr) {
-          if (this.player.invuln <= 0) {
+          if (!this.invulnerable()) {
             this.player.hp -= Projectile.dmg[e] * this.mods.dmgTakenMul;
             this.player.invuln = C.PLAYER_INVULN;
             audio.playerHurt();
@@ -865,7 +901,7 @@ export class Game {
 
   private playerContact(): void {
     const p = this.player;
-    if (p.invuln > 0) return;
+    if (this.invulnerable()) return;
     this.hash.queryRadius(p.x, p.y, p.radius + 30, this.cand);
     for (const e of this.cand) {
       const er = Enemy.radius[e];
@@ -935,7 +971,7 @@ export class Game {
       if (tg.t >= tg.delay) {
         const dx = this.player.x - tg.x;
         const dy = this.player.y - tg.y;
-        if (dx * dx + dy * dy < tg.r * tg.r && this.player.invuln <= 0) {
+        if (dx * dx + dy * dy < tg.r * tg.r && !this.invulnerable()) {
           this.player.hp -= tg.dmg * this.mods.dmgTakenMul;
           this.player.invuln = C.PLAYER_INVULN;
           audio.playerHurt();
@@ -1210,6 +1246,8 @@ export class Game {
     this.player.hp = 100;
     this.player.maxHp = 100;
     this.player.invuln = 0;
+    this.player.dashT = 0;
+    this.player.dashCd = 0;
     this.time = 0;
     this.kills = 0;
     this.level = 1;
@@ -1281,6 +1319,47 @@ export class Game {
     this.checkEnd();
   }
 
+  private createDashButton(): void {
+    const b = document.createElement('div');
+    b.setAttribute('data-ui', ''); // the joystick ignores [data-ui] targets
+    b.title = 'Dash (Space)';
+    b.textContent = '🏍️';
+    b.style.cssText =
+      'position:fixed;right:30px;bottom:124px;width:78px;height:78px;border-radius:50%;' +
+      'display:flex;align-items:center;justify-content:center;font-size:34px;z-index:6;' +
+      'border:2px solid rgba(255,255,255,0.45);box-shadow:0 2px 10px rgba(0,0,0,0.45);' +
+      'user-select:none;touch-action:none;cursor:pointer;transition:transform .06s;';
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.input.queueDash();
+      b.style.transform = 'scale(0.9)';
+    });
+    const up = (): void => {
+      b.style.transform = 'scale(1)';
+    };
+    b.addEventListener('pointerup', up);
+    b.addEventListener('pointercancel', up);
+    document.body.appendChild(b);
+    this.dashBtn = b;
+  }
+
+  // Reflect the dash cooldown on the button: a radial fill that completes when ready.
+  private syncDashButton(): void {
+    const b = this.dashBtn;
+    if (!b) return;
+    const cd = this.player.dashCd;
+    const ready = cd <= 0;
+    const deg = ready ? 360 : 360 * (1 - cd / DASH_CD);
+    b.style.background = `conic-gradient(rgba(90,200,255,0.6) ${deg}deg, rgba(40,48,68,0.5) ${deg}deg)`;
+    b.style.borderColor = ready ? 'rgba(130,225,255,0.95)' : 'rgba(255,255,255,0.3)';
+    b.style.opacity = ready ? '1' : '0.75';
+  }
+
+  // True while damage should be ignored: post-hit i-frames or mid-dash.
+  private invulnerable(): boolean {
+    return this.player.invuln > 0 || this.player.dashT > 0;
+  }
+
   // Drive the 8-direction HD survivor sprite: face the aim direction (nearest enemy,
   // else movement), choose idle/run/hit, and advance the correct frame. No horizontal
   // flipping — the 8 directional rows already carry facing.
@@ -1288,6 +1367,15 @@ export class Game {
     const sv = this.survivor!;
     const p = this.player;
     const s = this.playerSprite;
+    // Bike dash overrides the pose + facing: ride in the dash direction.
+    if (p.dashT > 0 && sv.rideRun) {
+      const ride = sv.rideRun;
+      const dr = dirRow(Math.atan2(p.dashDy, p.dashDx));
+      s.texture = ride.frames[dr][Math.floor(this.time * ride.fps) % ride.count];
+      s.scale.set(1.15);
+      s.alpha = 1;
+      return;
+    }
     const t = this.nearestEnemy(p.x, p.y, 1000);
     if (t >= 0) this.survFacing = Math.atan2(Position.y[t] - p.y, Position.x[t] - p.x);
     else if (this.input.dir.x || this.input.dir.y)
@@ -1343,6 +1431,7 @@ export class Game {
           : this.playerWalk[0];
       }
     }
+    this.syncDashButton();
     if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
 
     for (const e of enemyQuery(this.world)) {

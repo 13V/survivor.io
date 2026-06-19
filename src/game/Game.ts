@@ -282,9 +282,10 @@ export class Game {
       // Applied to the screen-space stage (origin 0,0) with a screen-sized filterArea so it
       // clips to the viewport rather than worldC's enormous camera-translated bounds.
       const grade = new ColorMatrixFilter();
-      grade.saturate(-0.05, false);
-      grade.contrast(0.12, true);
-      grade.brightness(1.08, true);
+      grade.saturate(-0.18, false); // muted, overcast feel
+      grade.contrast(0.16, true);
+      grade.brightness(1.0, true);
+      grade.tint(0xcfd8e0, true); // subtle cool cast
       this.app.stage.filters = [grade];
       this.app.stage.filterArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
     }
@@ -348,14 +349,23 @@ export class Game {
     if (onColRoad || onRowRoad) {
       const intersection = onColRoad && onRowRoad;
       if (!intersection) {
-        // continuous double-yellow centre line, using the tile whose painted line runs ALONG
-        // this road's iso axis so the lines join up tile-to-tile (no broken cross-dashes).
-        if (onColRoad && cx === 1) return 'asphalt_yellow'; // column road runs along the row axis
-        if (onRowRoad && cy === 1) return 'asphalt_yellow_b'; // row road runs along the col axis
+        // zebra crosswalk band across each road where it meets a cross-street
+        if (onColRoad && (cy === RW || cy === B - 1)) return 'cross_a';
+        if (onRowRoad && (cx === RW || cx === B - 1)) return 'cross_b';
+        // continuous double-yellow centre line, correct iso axis per road direction
+        if (onColRoad && cx === 1) return 'asphalt_yellow';
+        if (onRowRoad && cy === 1) return 'asphalt_yellow_b';
       }
       return 'asphalt';
     }
-    if (cx === RW || cy === RW || cx === B - 1 || cy === B - 1) return 'sidewalk';
+    // sidewalk ring — the road-facing edge of each cell carries a kerb
+    if (cx === RW || cy === RW || cx === B - 1 || cy === B - 1) {
+      if (cx === RW) return 'kerb_nw'; // road on the -cx (NW) side
+      if (cx === B - 1) return 'kerb_se'; // road on the +cx (SE) side
+      if (cy === RW) return 'kerb_ne'; // road on the -cy (NE) side
+      if (cy === B - 1) return 'kerb_sw'; // road on the +cy (SW) side
+      return 'sidewalk';
+    }
     return 'concrete';
   }
 
@@ -376,6 +386,14 @@ export class Game {
     if (!Object.keys(m).length) return this.diamondTex!;
     const cell = this.cityCell(col, row);
     const ex = this.env?.extras;
+    // zebra crosswalks (roadmark[0]=zebra_a across column roads, [1]=zebra_b across row roads)
+    if (cell === 'cross_a') return ex?.roadmark?.[0] ?? m.asphalt ?? this.diamondTex!;
+    if (cell === 'cross_b') return ex?.roadmark?.[1] ?? m.asphalt ?? this.diamondTex!;
+    // directional kerbs (kerb manifest order: nw, se, ne, sw); falls back to plain sidewalk
+    if (cell.startsWith('kerb_')) {
+      const idx = cell === 'kerb_nw' ? 0 : cell === 'kerb_se' ? 1 : cell === 'kerb_ne' ? 2 : 3;
+      return ex?.kerb?.[idx] ?? m.sidewalk ?? this.diamondTex!;
+    }
     const h = this.cellHash(col, row);
     // empty block interiors: gritty vacant-lot tiles instead of the loud checker
     if (cell === 'concrete') return this.pickVar(ex?.lot, col, row) ?? m.concrete ?? m.asphalt ?? this.diamondTex!;
@@ -453,7 +471,7 @@ export class Game {
     const grd = ctx.createRadialGradient(128, 128, 36, 128, 128, 152);
     grd.addColorStop(0, 'rgba(0,0,0,0)');
     grd.addColorStop(0.68, 'rgba(0,0,0,0)');
-    grd.addColorStop(1, 'rgba(8,9,13,0.42)');
+    grd.addColorStop(1, 'rgba(6,9,15,0.5)');
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, 256, 256);
     const v = new Sprite(Texture.from(cv));

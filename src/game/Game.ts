@@ -197,6 +197,7 @@ export class Game {
   private groundPool: Sprite[] = [];
   private isoMap: Record<string, Texture> = {}; // named street tiles (asphalt/asphalt_yellow/sidewalk/...)
   private groundAnchorY = 0.5; // top-face-center as a fraction of tile height
+  private showBuildings = false; // buildings parked for now — focusing on the street floor
   private diamondTex: Texture | null = null;
   private fxC = new Container();
   private animClock = 0;
@@ -281,9 +282,9 @@ export class Game {
       // Applied to the screen-space stage (origin 0,0) with a screen-sized filterArea so it
       // clips to the viewport rather than worldC's enormous camera-translated bounds.
       const grade = new ColorMatrixFilter();
-      grade.saturate(-0.2, false);
-      grade.contrast(0.18, true);
-      grade.brightness(1.06, true);
+      grade.saturate(-0.05, false);
+      grade.contrast(0.12, true);
+      grade.brightness(1.08, true);
       this.app.stage.filters = [grade];
       this.app.stage.filterArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
     }
@@ -345,7 +346,11 @@ export class Game {
     const onColRoad = cx < RW;
     const onRowRoad = cy < RW;
     if (onColRoad || onRowRoad) {
+      // continuous yellow centre line down each road
       if ((onColRoad && cx === 1) || (onRowRoad && cy === 1)) return 'asphalt_yellow';
+      // white edge line where the road meets the kerb (outer lanes, away from intersections)
+      if (onColRoad && !onRowRoad && (cx === 0 || cx === RW - 1)) return 'asphalt_edge';
+      if (onRowRoad && !onColRoad && (cy === 0 || cy === RW - 1)) return 'asphalt_edge';
       return 'asphalt';
     }
     if (cx === RW || cy === RW || cx === B - 1 || cy === B - 1) return 'sidewalk';
@@ -361,7 +366,7 @@ export class Game {
   // Building footprints (block interiors) are solid: the cast can only walk the streets +
   // sidewalks, so the horde funnels down the avenues instead of clipping through/onto roofs.
   private blockedCity(wx: number, wy: number): boolean {
-    if (!this.env) return false;
+    if (!this.env || !this.showBuildings) return false; // no building collision while buildings are parked
     return this.cityCell(Math.round(wx / ISO_TILE), Math.round(wy / ISO_TILE)) === 'concrete';
   }
 
@@ -421,8 +426,8 @@ export class Game {
     if (!ctx) return;
     const grd = ctx.createRadialGradient(128, 128, 36, 128, 128, 152);
     grd.addColorStop(0, 'rgba(0,0,0,0)');
-    grd.addColorStop(0.62, 'rgba(0,0,0,0)');
-    grd.addColorStop(1, 'rgba(5,6,9,0.62)');
+    grd.addColorStop(0.68, 'rgba(0,0,0,0)');
+    grd.addColorStop(1, 'rgba(8,9,13,0.42)');
     ctx.fillStyle = grd;
     ctx.fillRect(0, 0, 256, 256);
     const v = new Sprite(Texture.from(cv));
@@ -532,7 +537,7 @@ export class Game {
     // composed multi-storey buildings (fallback to single facades) packed into block
     // interiors on a 3-cell grid so each block is a solid mass with streets around it.
     const buildings = env.buildings2.length ? env.buildings2 : env.buildings;
-    if (buildings.length) {
+    if (this.showBuildings && buildings.length) {
       for (let bc = -NB; bc <= NB; bc++) {
         for (let br = -NB; br <= NB; br++) {
           // ONE solid building per block, centred in the 4-cell lot (cells 4..7), no overlap

@@ -94,7 +94,9 @@ export async function preloadEnv(): Promise<void> {
             try {
               const tex = (await Assets.load(url(`isoground/${t.file}`))) as Texture;
               tex.source.scaleMode = 'nearest'; // crisp pixel-art street tiles, no seam bleed
-              isoground[t.name ?? t.file.replace('.png', '')] = tex;
+              // key by FILENAME (asphalt, asphalt_yellow, sidewalk, concrete...) so cityCell's
+              // short surface keys match — NOT the manifest's descriptive `name` field.
+              isoground[t.file.replace('.png', '')] = tex;
             } catch {
               /* skip */
             }

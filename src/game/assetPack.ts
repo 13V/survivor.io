@@ -16,7 +16,7 @@
 //
 // Licence note: the pack permits commercial/personal use but forbids redistribution,
 // so it lives only in this (private) repo — see public/assets/sprites/CREDITS.txt.
-import { Assets, Sprite } from 'pixi.js';
+import { Assets, Container, Sprite } from 'pixi.js';
 import type { Renderer, Texture } from 'pixi.js';
 import type { Textures } from './textures';
 
@@ -34,8 +34,10 @@ const ANIM_GROUPS: Record<string, number> = {
   fx_blood: 5, // blood splatter
 };
 const SINGLES = [
-  'money', 'ground', 'tree_0', 'tree_1', 'tree_2', 'bush_0', 'bush_1',
+  'money', 'tree_0', 'tree_1', 'tree_2', 'bush_0', 'bush_1',
   'tomb_0', 'sit_0', 'corpse_0',
+  // Terrain tiles are composited into one big varied ground texture.
+  'ground_0', 'ground_1', 'ground_2', 'ground_3',
 ] as const;
 
 // Baked, ready-to-use animation frames and scenery. Built once after the static pack.
@@ -127,6 +129,44 @@ export function applyAssetPack(renderer: Renderer, tex: Textures): boolean {
   return true;
 }
 
+// Composite a large, varied ground texture from the 4 terrain variants (mostly plain
+// dirt with sparse rubble) plus the odd grass patch, so the tiled ground reads as
+// organic instead of one 16px stamp repeating. Returns null if no tiles loaded.
+function buildGround(renderer: Renderer): Texture | null {
+  const tiles = ['ground_0', 'ground_1', 'ground_2', 'ground_3']
+    .map((k) => rawSingle[k])
+    .filter((t): t is Texture => !!t);
+  if (!tiles.length) return null;
+  const base = tiles.slice(0, Math.min(2, tiles.length)); // plain dirt = the field
+  const debris = tiles.slice(2); // rubble = rare accents only
+  const N = 24; // tiles per side → 768px period, repeats far less obviously
+  const D = 32; // on-screen px per 16px tile (×2 — finer than the old ×4 stamp)
+  const cont = new Container();
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const src =
+        debris.length > 0 && Math.random() < 0.012
+          ? debris[(Math.random() * debris.length) | 0]
+          : base[(Math.random() * base.length) | 0];
+      const s = new Sprite(src);
+      // Centre each cell, then randomly rotate/flip so the plain tiles don't read as
+      // a grid — the specks scatter and the seams disappear.
+      s.anchor.set(0.5);
+      s.position.set(x * D + D / 2, y * D + D / 2);
+      s.width = D;
+      s.height = D;
+      s.rotation = ((Math.random() * 4) | 0) * (Math.PI / 2);
+      if (Math.random() < 0.5) s.scale.x = -s.scale.x;
+      if (Math.random() < 0.5) s.scale.y = -s.scale.y;
+      cont.addChild(s);
+    }
+  }
+  const tex = renderer.generateTexture({ target: cont, resolution: 1 });
+  tex.source.scaleMode = 'nearest';
+  cont.destroy({ children: true });
+  return tex;
+}
+
 // Sync step run after applyAssetPack: bake the best-effort animation + scenery layer.
 // Returns null if the static pack isn't active. Each group degrades independently —
 // a group that didn't load comes back empty, and callers fall back to the static slot.
@@ -159,7 +199,7 @@ export function buildAnimPack(renderer: Renderer, tex: Textures): AnimPack | nul
     turret: frames('zt', tex.enemy[1].width, tex.enemy[1].height),
     explosion: frames('fx_exp', 46, 46),
     blood: frames('fx_blood', 30, 30),
-    ground: single('ground', 64, 64),
+    ground: buildGround(renderer),
     money: single('money', 20, 20),
     props,
   };

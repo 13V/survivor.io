@@ -1,0 +1,36 @@
+{
+  "tiles": [
+    {
+      "file": "cracked1.png",
+      "name": "Cracked asphalt with pothole"
+    },
+    {
+      "file": "cracked2.png",
+      "name": "Heavily alligator-cracked asphalt"
+    },
+    {
+      "file": "cracked3.png",
+      "name": "Asphalt with long fractures and wide pothole"
+    },
+    {
+      "file": "patched1.png",
+      "name": "Asphalt with rectangular tar patches"
+    },
+    {
+      "file": "patched2.png",
+      "name": "Repaved asphalt patch with seams"
+    },
+    {
+      "file": "faded1.png",
+      "name": "Sun-bleached faded asphalt"
+    },
+    {
+      "file": "oilstained1.png",
+      "name": "Oil-stained asphalt"
+    },
+    {
+      "file": "manhole_seams1.png",
+      "name": "Asphalt with utility-cut seams"
+    }
+  ]
+}

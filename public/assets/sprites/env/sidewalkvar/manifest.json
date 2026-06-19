@@ -1,0 +1,15 @@
+{
+  "diamondW": 128,
+  "diamondH": 64,
+  "apexX": 64,
+  "apexY": 0,
+  "note": "Sidewalk / pavement variant ground tiles, painted on a COPY of isoground/sidewalk.png. Same iso block format: 128x81 with a 2:1 diamond TOP face (apex (64,0), left (0,32), right (127,32), bottom (64,64)) plus extruded sides below. Detail is painted only on the top face using ground coords (u,v) in [0,1]^2 -> pixel (64+64u-64v, 32u+32v); the original block silhouette/alpha and side walls are preserved.",
+  "tiles": [
+    { "file": "cracked1.png",          "w": 128, "h": 81, "name": "Cracked paving slabs" },
+    { "file": "cracked2.png",          "w": 128, "h": 81, "name": "Cracked slabs with one missing slab" },
+    { "file": "grimy1.png",            "w": 128, "h": 81, "name": "Grimy pavement with dirt stains and gum spots" },
+    { "file": "weeds1.png",            "w": 128, "h": 81, "name": "Weeds sprouting between paving slabs" },
+    { "file": "manhole_sidewalk1.png", "w": 128, "h": 81, "name": "Sidewalk with round utility/manhole cover" },
+    { "file": "curb_edge1.png",        "w": 128, "h": 81, "name": "Sidewalk with kerb edge along the road side" }
+  ]
+}

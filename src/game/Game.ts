@@ -357,10 +357,34 @@ export class Game {
     return 'concrete';
   }
 
+  // Deterministic per-cell hash in [0,1) so tile-variant choices are stable as the camera streams.
+  private cellHash(col: number, row: number): number {
+    let h = Math.imul(col, 374761393) + Math.imul(row, 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+
+  private pickVar(list: Texture[] | undefined, col: number, row: number): Texture | null {
+    if (!list || !list.length) return null;
+    return list[(this.cellHash(row * 31 + 7, col * 17 + 3) * list.length) | 0];
+  }
+
   private tileTexFor(col: number, row: number): Texture {
     const m = this.isoMap;
     if (!Object.keys(m).length) return this.diamondTex!;
-    return m[this.cityCell(col, row)] ?? m.asphalt ?? this.diamondTex!;
+    const cell = this.cityCell(col, row);
+    const ex = this.env?.extras;
+    const h = this.cellHash(col, row);
+    // empty block interiors: gritty vacant-lot tiles instead of the loud checker
+    if (cell === 'concrete') return this.pickVar(ex?.lot, col, row) ?? m.concrete ?? m.asphalt ?? this.diamondTex!;
+    // roads: a deterministic minority get a cracked/patched or manhole/drain variant
+    if (cell === 'asphalt') {
+      if (h < 0.1) return this.pickVar(ex?.utility, col, row) ?? m.asphalt ?? this.diamondTex!;
+      if (h < 0.5) return this.pickVar(ex?.asphaltvar, col, row) ?? m.asphalt ?? this.diamondTex!;
+    }
+    // sidewalks: half get a cracked/grimy/weedy variant
+    if (cell === 'sidewalk' && h < 0.5) return this.pickVar(ex?.sidewalkvar, col, row) ?? m.sidewalk ?? this.diamondTex!;
+    return m[cell] ?? m.asphalt ?? this.diamondTex!;
   }
 
   // Building footprints (block interiors) are solid: the cast can only walk the streets +
@@ -496,14 +520,21 @@ export class Game {
       return;
     }
 
-    // --- flat ground decals: blood, grime and cracks strewn across the streets ---
-    const decalSets: { tex: Texture[]; n: number; smin: number; smax: number; alpha: number }[] = [
-      { tex: env.detail, n: 150, smin: 0.7, smax: 1.5, alpha: 0.78 }, // cracks / debris / oil / paint
-      { tex: env.decals, n: 170, smin: 0.8, smax: 2.0, alpha: 0.82 }, // dried blood
-      { tex: env.ground.slice(5), n: 40, smin: 1.0, smax: 1.6, alpha: 0.4 }, // surface patches
+    // --- flat ground decals: grime, oil, tyre marks, trash, puddles and blood strewn across
+    // the streets (the floor-grit pass). Falls back to the old detail/blood sets if absent. ---
+    const ex0 = env.extras;
+    const decalSets: { tex?: Texture[]; n: number; smin: number; smax: number; alpha: number }[] = [
+      { tex: ex0?.grimedecal, n: 150, smin: 0.6, smax: 1.5, alpha: 0.7 }, // cracks / grime / scorch
+      { tex: ex0?.oildecal, n: 70, smin: 0.5, smax: 1.1, alpha: 0.7 }, // oil / fluid stains
+      { tex: ex0?.tiredecal, n: 55, smin: 0.5, smax: 1.1, alpha: 0.55 }, // skid / tyre marks
+      { tex: ex0?.puddledecal, n: 35, smin: 0.6, smax: 1.3, alpha: 0.8 }, // wet patches / puddles
+      { tex: ex0?.trashdecal, n: 160, smin: 0.4, smax: 0.9, alpha: 0.95 }, // litter / leaves / glass
+      { tex: ex0?.blooddecal, n: 80, smin: 0.5, smax: 1.2, alpha: 0.9 }, // gore pools / smears
+      { tex: env.detail, n: 50, smin: 0.7, smax: 1.4, alpha: 0.55 }, // fallback grit
+      { tex: env.decals, n: 50, smin: 0.8, smax: 1.6, alpha: 0.5 }, // fallback blood
     ];
     for (const set of decalSets) {
-      if (!set.tex.length) continue;
+      if (!set.tex?.length) continue;
       for (let i = 0; i < set.n; i++) {
         const s = new Sprite(set.tex[(Math.random() * set.tex.length) | 0]);
         s.anchor.set(0.5);

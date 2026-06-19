@@ -1,0 +1,64 @@
+{
+  "tiles": [
+    {
+      "file": "OilPool_1.png",
+      "w": 151,
+      "h": 153
+    },
+    {
+      "file": "OilPool_2.png",
+      "w": 132,
+      "h": 142
+    },
+    {
+      "file": "OilPuddle_1.png",
+      "w": 142,
+      "h": 137
+    },
+    {
+      "file": "OilDrip_1.png",
+      "w": 90,
+      "h": 150
+    },
+    {
+      "file": "OilDrip_2.png",
+      "w": 71,
+      "h": 181
+    },
+    {
+      "file": "Coolant_1.png",
+      "w": 164,
+      "h": 141
+    },
+    {
+      "file": "Coolant_2.png",
+      "w": 164,
+      "h": 150
+    },
+    {
+      "file": "RustStain_1.png",
+      "w": 147,
+      "h": 143
+    },
+    {
+      "file": "RustStain_2.png",
+      "w": 145,
+      "h": 155
+    },
+    {
+      "file": "FuelSplash_1.png",
+      "w": 122,
+      "h": 121
+    },
+    {
+      "file": "Scorch_1.png",
+      "w": 163,
+      "h": 142
+    },
+    {
+      "file": "Scorch_2.png",
+      "w": 125,
+      "h": 140
+    }
+  ]
+}

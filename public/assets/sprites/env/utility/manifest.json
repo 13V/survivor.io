@@ -1,0 +1,14 @@
+{
+  "diamondW": 128,
+  "diamondH": 64,
+  "apexX": 64,
+  "apexY": 0,
+  "note": "Utility iso ground tiles: manhole covers, storm-drain grates and a steel road plate set flush into asphalt. COMPOSED from isoground/asphalt.png (128x81) by painting features onto the diamond TOP face only (apex (64,0), left (0,32), right (127,32), bottom (64,64)); the extruded asphalt sides below y=32 are left untouched. Features are drawn in ground-coords (u,v) in [0,1]^2 mapped to pixel (64+64u-64v, 32u+32v), so round manholes become 2:1 squashed ELLIPSES lying flat on the diamond (centred near (64,32)) and rectangular grates/plates become parallelograms aligned to the diamond edges. Same diamond format/metrics as env/isoground and env/crosswalk.",
+  "tiles": [
+    { "file": "manhole1.png",       "w": 128, "h": 81, "name": "Round cast-iron manhole cover, radial spoke pattern, rusty, set flush (2:1 ellipse on diamond)" },
+    { "file": "manhole2.png",       "w": 128, "h": 81, "name": "Round cast-iron manhole cover, square waffle-grid pattern, rusty, set flush (2:1 ellipse on diamond)" },
+    { "file": "drain1.png",         "w": 128, "h": 81, "name": "Rectangular storm-drain grate, slots running along the apex->right edge, set in the gutter" },
+    { "file": "drain2.png",         "w": 128, "h": 81, "name": "Rectangular storm-drain grate, slots running along the apex->left edge (perpendicular orientation)" },
+    { "file": "utility_plate1.png", "w": 128, "h": 81, "name": "Steel road/trench plate with anti-skid tread and countersunk corner bolts, sitting proud of the asphalt" }
+  ]
+}

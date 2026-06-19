@@ -1,0 +1,36 @@
+{
+  "tiles": [
+    {
+      "file": "cracked_concrete1.png",
+      "name": "Cracked grey concrete slab with weeds in cracks"
+    },
+    {
+      "file": "cracked_concrete2.png",
+      "name": "Cracked concrete with spiderweb fractures and weeds"
+    },
+    {
+      "file": "gravel1.png",
+      "name": "Loose gravel and rubble"
+    },
+    {
+      "file": "dirt_weeds1.png",
+      "name": "Packed dirt with scattered weed tufts"
+    },
+    {
+      "file": "dirt_weeds2.png",
+      "name": "Rutted packed dirt with weed tufts"
+    },
+    {
+      "file": "broken_pavement1.png",
+      "name": "Broken concrete pavement chunks with weedy gaps"
+    },
+    {
+      "file": "rubble1.png",
+      "name": "Flat concrete rubble pile"
+    },
+    {
+      "file": "oil_stained_concrete1.png",
+      "name": "Concrete slab with dark oil stains"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "tiles": [
+    {
+      "file": "skid_straight_v.png",
+      "w": 42,
+      "h": 236
+    },
+    {
+      "file": "skid_straight_h.png",
+      "w": 216,
+      "h": 41
+    },
+    {
+      "file": "skid_straight_diag.png",
+      "w": 218,
+      "h": 172
+    },
+    {
+      "file": "skid_curve_swerve.png",
+      "w": 86,
+      "h": 270
+    },
+    {
+      "file": "skid_curve_s.png",
+      "w": 120,
+      "h": 272
+    },
+    {
+      "file": "brake_single_v.png",
+      "w": 20,
+      "h": 198
+    },
+    {
+      "file": "brake_single_curve.png",
+      "w": 113,
+      "h": 217
+    },
+    {
+      "file": "screech_double.png",
+      "w": 37,
+      "h": 224
+    },
+    {
+      "file": "burnout_donut.png",
+      "w": 184,
+      "h": 231
+    },
+    {
+      "file": "burnout_donut_small.png",
+      "w": 138,
+      "h": 175
+    },
+    {
+      "file": "dirt_tracks_v.png",
+      "w": 46,
+      "h": 248
+    },
+    {
+      "file": "dirt_tracks_diag.png",
+      "w": 152,
+      "h": 222
+    }
+  ]
+}

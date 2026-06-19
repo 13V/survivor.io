@@ -1,0 +1,21 @@
+{
+  "diamondW": 128,
+  "diamondH": 64,
+  "apexX": 64,
+  "apexY": 0,
+  "note": "Road-marking iso ground tiles. COMPOSED from isoground/asphalt.png (128x81) by painting worn white/yellow road paint (~70% opacity) onto the diamond TOP face only (apex (64,0), left (0,32), right (127,32), bottom (64,64)); the extruded asphalt side walls below y=32 are left untouched. Markings are built in ground coords (u,v) in [0,1]^2 and projected with pixel=(64+64u-64v, 32u+32v), so every stripe/arrow/triangle LIES FLAT on the iso plane (follows the 2:1 diamond slope, never vertical). Same diamond format/metrics as env/isoground. Orientation convention: _a = road runs along the apex->right axis (travel = +u), _b = road runs along the apex->left axis (travel = +v); the two are mirror orientations of the same marking. Crosswalk/stop bars run ACROSS the road; arrows point ALONG the road; give-way uses shark-teeth + dashed yield line.",
+  "tiles": [
+    { "file": "zebra_a.png",          "w": 128, "h": 81, "name": "Zebra crosswalk, white stripes across the apex->right road (stripes run across road)" },
+    { "file": "zebra_b.png",          "w": 128, "h": 81, "name": "Zebra crosswalk, white stripes across the apex->left road (perpendicular orientation)" },
+    { "file": "stopline_a.png",       "w": 128, "h": 81, "name": "Thick white stop bar across the apex->right road near an intersection" },
+    { "file": "stopline_b.png",       "w": 128, "h": 81, "name": "Thick white stop bar across the apex->left road near an intersection" },
+    { "file": "arrow_straight_a.png", "w": 128, "h": 81, "name": "White straight road arrow pointing along the apex->right road direction" },
+    { "file": "arrow_straight_b.png", "w": 128, "h": 81, "name": "White straight road arrow pointing along the apex->left road direction" },
+    { "file": "arrow_left.png",       "w": 128, "h": 81, "name": "White turn arrow bending left (forward along apex->right, head curves toward apex side)" },
+    { "file": "arrow_right.png",      "w": 128, "h": 81, "name": "White turn arrow bending right (forward along apex->right, head curves toward bottom side)" },
+    { "file": "parking_a.png",        "w": 128, "h": 81, "name": "White parking-bay lines along the apex->right road (curb edge line + perpendicular bay dividers)" },
+    { "file": "parking_b.png",        "w": 128, "h": 81, "name": "White parking-bay lines along the apex->left road (mirror orientation)" },
+    { "file": "give_way_a.png",       "w": 128, "h": 81, "name": "White give-way / yield marking across the apex->right road (shark-teeth triangles + dashed line)" },
+    { "file": "give_way_b.png",       "w": 128, "h": 81, "name": "White give-way / yield marking across the apex->left road (mirror orientation)" }
+  ]
+}

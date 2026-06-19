@@ -1,0 +1,44 @@
+{
+  "tiles": [
+    {
+      "file": "rain_puddle_a.png",
+      "w": 150,
+      "h": 118
+    },
+    {
+      "file": "rain_puddle_b.png",
+      "w": 132,
+      "h": 104
+    },
+    {
+      "file": "rain_puddle_c.png",
+      "w": 168,
+      "h": 122
+    },
+    {
+      "file": "wet_asphalt_a.png",
+      "w": 160,
+      "h": 130
+    },
+    {
+      "file": "wet_asphalt_b.png",
+      "w": 138,
+      "h": 116
+    },
+    {
+      "file": "gutter_streak.png",
+      "w": 176,
+      "h": 92
+    },
+    {
+      "file": "puddle_cluster_a.png",
+      "w": 150,
+      "h": 128
+    },
+    {
+      "file": "puddle_cluster_b.png",
+      "w": 128,
+      "h": 120
+    }
+  ]
+}

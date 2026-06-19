@@ -32,7 +32,12 @@ const isoground: Record<string, Texture> = {};
 let isoMeta: EnvAssets['isoMeta'] = null;
 let buildings2: Texture[] = [];
 const extras: Record<string, Texture[]> = {};
-const EXTRA_CATS = ['railing', 'lamps', 'signs', 'rooftop', 'bins', 'rubble', 'furniture', 'struct', 'traffic', 'trees', 'graffiti', 'roaddetail', 'taxi', 'sedan'];
+const EXTRA_CATS = [
+  'railing', 'lamps', 'signs', 'rooftop', 'bins', 'rubble', 'furniture', 'struct', 'traffic', 'trees', 'graffiti', 'roaddetail', 'taxi', 'sedan',
+  // floor-grit pass: iso ground-tile variants + flat top-down decals
+  'roadmark', 'asphaltvar', 'utility', 'lot', 'sidewalkvar',
+  'blooddecal', 'oildecal', 'tiredecal', 'grimedecal', 'trashdecal', 'puddledecal',
+];
 
 function url(p: string): string {
   const base = typeof document !== 'undefined' ? document.baseURI : '/';

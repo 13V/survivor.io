@@ -1,0 +1,8 @@
+{
+  "tiles": [
+    { "file": "kerb_nw.png", "name": "Kerb along apex->left edge (north-west)" },
+    { "file": "kerb_se.png", "name": "Kerb along right->bottom edge (south-east)" },
+    { "file": "kerb_ne.png", "name": "Kerb along apex->right edge (north-east)" },
+    { "file": "kerb_sw.png", "name": "Kerb along left->bottom edge (south-west)" }
+  ]
+}

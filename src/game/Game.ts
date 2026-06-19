@@ -97,6 +97,9 @@ const DASH_SPEED = 720; // px/s during the dash (~3x walk)
 // collision circle). Run/Attack cycle speeds come from each DirAnim's fps.
 const Z_DISPLAY_K = 7.2;
 
+// Player death sequence: play the survivor Die animation, then show the game-over card.
+const DEATH_DUR = 1.3;
+
 export class Game {
   private world: IWorld = createWorld();
   private tex: Textures;
@@ -173,6 +176,8 @@ export class Game {
   // 8-direction HD survivor player: faces aim, switches idle/run/hit. null = procedural.
   private survivor: SurvivorSprite | null = null;
   private survFacing = Math.PI / 2; // start facing down (south)
+  private dying = false; // player death animation in progress
+  private deathStart = 0;
   // HD zombie enemies: a shared type->anim set + the chosen type per live entity.
   private zombies: ZombieAssets | null = null;
   private enemyZ: (ZombieAnims | undefined)[] = [];
@@ -1265,12 +1270,27 @@ export class Game {
 
   private checkEnd(): void {
     if (this.state === 'over') return;
-    if (this.player.hp <= 0) this.end('You Died');
-    else if (this.win) this.end('You Survived!');
+    if (this.dying) {
+      // let the survivor's Die animation play out before the game-over card
+      if (this.time - this.deathStart >= DEATH_DUR) this.end('You Died');
+      return;
+    }
+    if (this.player.hp <= 0) {
+      if (this.survivor?.die) {
+        this.dying = true;
+        this.deathStart = this.time;
+        this.input.enabled = false;
+      } else {
+        this.end('You Died');
+      }
+    } else if (this.win) {
+      this.end('You Survived!');
+    }
   }
 
   private end(title: string): void {
     this.state = 'over';
+    if (this.dashBtn) this.dashBtn.style.display = 'none';
     this.input.enabled = false;
     audio.setBossMode(false);
     meta.recordRun({ timeSec: this.time, kills: this.kills, level: this.level });
@@ -1337,6 +1357,9 @@ export class Game {
     this.player.invuln = 0;
     this.player.dashT = 0;
     this.player.dashCd = 0;
+    this.dying = false;
+    this.deathStart = 0;
+    if (this.dashBtn) this.dashBtn.style.display = 'flex';
     this.time = 0;
     this.kills = 0;
     this.level = 1;
@@ -1457,6 +1480,14 @@ export class Game {
     const sv = this.survivor!;
     const p = this.player;
     const s = this.playerSprite;
+    // Death animation overrides everything else.
+    if (this.dying && sv.die) {
+      const f = Math.min(sv.die.count - 1, Math.floor((this.time - this.deathStart) * sv.die.fps));
+      s.texture = sv.die.frames[dirRow(this.survFacing)][f];
+      s.scale.set(1.15);
+      s.alpha = 1;
+      return;
+    }
     // Bike dash overrides the pose + facing: ride in the dash direction.
     if (p.dashT > 0 && sv.rideRun) {
       const ride = sv.rideRun;

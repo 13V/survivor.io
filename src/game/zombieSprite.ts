@@ -12,10 +12,22 @@ const COLS = 15;
 const ROWS = 8;
 
 export const ZOMBIE_POOLS: string[][] = [
-  ['ZombieMale1', 'ZombieMale2', 'ZombieMale3', 'ZombieMale4', 'ZombieFemale1', 'ZombieFemale2', 'ZombieCop1'],
-  ['ZombieSoldier1', 'ZombieSoldier2', 'ZombieRadioactive1', 'ZombieFemale3', 'ZombieCop2'],
-  ['ZombieHulk1', 'ZombieHulk2', 'ZombieMonster1'],
-  ['ZombieGeneral1', 'ZombieMonster2'],
+  // 0 walkers (the common horde): all males + females
+  [
+    'ZombieMale1', 'ZombieMale2', 'ZombieMale3', 'ZombieMale4', 'ZombieMale5', 'ZombieMale6',
+    'ZombieMale7', 'ZombieMale8', 'ZombieMale9', 'ZombieFemale1', 'ZombieFemale2', 'ZombieFemale3',
+    'ZombieFemale4', 'ZombieFemale5', 'ZombieFemale6', 'ZombieFemale7',
+  ],
+  // 1 fast / small: uniformed + agile (cops, soldiers, radioactive)
+  [
+    'ZombieCop1', 'ZombieCop2', 'ZombieCop3', 'ZombieCop4', 'ZombieSoldier1', 'ZombieSoldier2',
+    'ZombieSoldier3', 'ZombieSoldier4', 'ZombieSoldier5', 'ZombieSoldier6', 'ZombieRadioactive1',
+    'ZombieRadioactive2', 'ZombieRadioactive3',
+  ],
+  // 2 brutes
+  ['ZombieHulk1', 'ZombieHulk2', 'ZombieMonster1', 'ZombieMonster2', 'ZombieMonster3'],
+  // 3 boss pool fallback
+  ['ZombieGeneral1', 'ZombieGeneral2'],
 ];
 
 // Signature zombie for named bosses (falls back to the class pool if unset/unloaded).

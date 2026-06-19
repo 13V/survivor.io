@@ -3,6 +3,7 @@ import {
   WEAPONS,
   PASSIVES,
   ENEMY_DEFS,
+  CHARACTERS,
   baseMods,
   type Mods,
 } from '../src/game/data';
@@ -133,6 +134,17 @@ describe('ENEMY_DEFS registry', () => {
     expect(mobs.length).toBeGreaterThan(0);
     const maxMobHp = Math.max(...mobs.map((e) => e.hp));
     for (const b of bosses) expect(b.hp).toBeGreaterThan(maxMobHp);
+  });
+});
+
+describe('CHARACTERS', () => {
+  it('each character references weapons that exist', () => {
+    const all = Object.values(CHARACTERS);
+    expect(all.length).toBeGreaterThan(0);
+    for (const c of all) {
+      expect(WEAPONS[c.startingWeapon], `${c.id} startingWeapon`).toBeDefined();
+      if (c.exclusiveSkill) expect(WEAPONS[c.exclusiveSkill], `${c.id} exclusiveSkill`).toBeDefined();
+    }
   });
 });
 

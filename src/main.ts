@@ -8,6 +8,8 @@ import { Minimap } from './ui/minimap';
 import { audio } from './audio/sfx';
 import { meta, formatTime } from './meta/save';
 import { registerSW, enableTapFullscreen } from './pwa';
+import { CHARACTERS } from './game/data';
+import { CharSelect } from './ui/charselect';
 
 async function main(): Promise<void> {
   const app = new Application();
@@ -37,6 +39,7 @@ async function main(): Promise<void> {
   const hud = new Hud(root);
   const minimap = new Minimap(root);
   minimap.setVisible(false);
+  const charSelect = new CharSelect(root, Object.values(CHARACTERS));
 
   new SettingsPanel(root, {
     onPause: () => app.ticker.stop(),
@@ -52,11 +55,13 @@ async function main(): Promise<void> {
     if (started) return;
     started = true;
     title.hide();
+    charSelect.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
-    new Game(app, hud, minimap);
+    new Game(app, hud, minimap, charSelect.selected);
   });
   title.show();
+  charSelect.setVisible(true);
 }
 
 void main();

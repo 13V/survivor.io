@@ -30,6 +30,7 @@ import {
   type Mods,
   type WeaponContext,
   type WeaponRuntime,
+  type CharacterDef,
 } from './data';
 import { behaviors } from './behaviors';
 import { Input } from '../core/input';
@@ -133,6 +134,7 @@ export class Game {
     private app: Application,
     private hud: Hud,
     private minimap: Minimap,
+    private character: CharacterDef,
   ) {
     this.tex = createTextures(app.renderer);
     this.bg = new TilingSprite({
@@ -322,7 +324,9 @@ export class Game {
 
   // ---- weapons --------------------------------------------------------------
   private addWeapon(id: string): void {
-    const inst: WeaponInst = { def: WEAPONS[id], level: 1, timer: 0, angle: 0, blades: [] };
+    const def = WEAPONS[id];
+    if (!def) return;
+    const inst: WeaponInst = { def, level: 1, timer: 0, angle: 0, blades: [] };
     this.weapons.push(inst);
     this.ownedWeapons.set(id, inst);
     if (inst.def.type === 'orbit') this.rebuildBlades(inst);
@@ -690,6 +694,8 @@ export class Game {
   // ---- progression ----------------------------------------------------------
   private recompute(): void {
     const m = baseMods();
+    const cm = this.character.mods;
+    if (cm) for (const k of Object.keys(cm) as (keyof Mods)[]) m[k] += cm[k] ?? 0;
     for (const [id, lvl] of this.passives) PASSIVES[id].apply(lvl, m);
     this.mods = m;
     this.player.maxHp = 100 * m.maxHpMul;
@@ -879,7 +885,10 @@ export class Game {
     this.state = 'play';
     this.input.enabled = true;
 
-    this.addWeapon('shuriken');
+    this.addWeapon(this.character.startingWeapon);
+    if (this.character.exclusiveSkill && this.character.exclusiveSkill !== this.character.startingWeapon)
+      this.addWeapon(this.character.exclusiveSkill);
+    this.playerSprite.tint = this.character.tint ?? 0xffffff;
     this.recompute();
     this.hud.hideEnd();
     this.hud.hideLevelUp();

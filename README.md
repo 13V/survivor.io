@@ -14,7 +14,10 @@ npm run dev       # open the printed localhost URL
 
 **Controls:** WASD / arrow keys, or drag anywhere (touch/mouse) for a floating joystick. Attacks are automatic. Survive, vacuum XP, pick 1-of-3 upgrades on level-up, stack a build, and kill the boss that spawns at 1:30.
 
-**What's implemented (M1):** fixed-timestep ECS loop, uniform-grid spatial-hash collision, sprite/object pooling, a data-driven spawn director, 4 weapons (Shuriken / Orbit Blades / Tesla / Forcefield) + 6 passives, the level-up draft, floating damage numbers, hit-flash + knockback juice, an enemy roster, and a telegraphed boss with a board-wipe. All content is data-driven in [`src/game/data.ts`](src/game/data.ts). Architecture follows [`docs/09-TECH-STACK.md`](docs/09-TECH-STACK.md).
+**Implemented:**
+- **Core (M1):** fixed-timestep ECS loop, uniform-grid spatial-hash collision, sprite/object pooling, a data-driven spawn director, the 1-of-3 level-up draft, floating damage numbers, hit-flash + knockback juice, an enemy roster, and a telegraphed boss with a board-wipe.
+- **Systems:** procedural Web-Audio SFX + music, title screen, settings/pause, minimap with off-screen boss arrow, `localStorage` save (best time/kills/coins), PWA (installable/offline), and a Vitest suite + CI.
+- **Content (M2):** a data-driven **content registry** (`src/game/content/**`, auto-loaded via Vite glob) with **~25 weapons across 6 behaviors** (projectile / burst / orbit / zap / nova / beam), **~20 evolutions** (maxed weapon + catalyst → evolved form), and **8 passives**. Adding a weapon = dropping in one file. Architecture: [`docs/12-PROTOTYPE-ARCHITECTURE.md`](docs/12-PROTOTYPE-ARCHITECTURE.md).
 
 ---
 

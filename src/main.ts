@@ -2,6 +2,12 @@ import './ui/styles.css';
 import { Application } from 'pixi.js';
 import { Game } from './game/Game';
 import { Hud } from './ui/hud';
+import { TitleScreen } from './ui/menu';
+import { SettingsPanel } from './ui/settings';
+import { Minimap } from './ui/minimap';
+import { audio } from './audio/sfx';
+import { meta, formatTime } from './meta/save';
+import { registerSW, enableTapFullscreen } from './pwa';
 
 async function main(): Promise<void> {
   const app = new Application();
@@ -17,9 +23,40 @@ async function main(): Promise<void> {
   if (!root) throw new Error('#app not found');
   root.appendChild(app.canvas);
 
+  registerSW();
+  enableTapFullscreen();
+
+  // Unlock audio on the first user gesture (browsers block autoplay).
+  const unlockAudio = (): void => {
+    audio.unlock();
+    audio.startMusic();
+    window.removeEventListener('pointerdown', unlockAudio);
+  };
+  window.addEventListener('pointerdown', unlockAudio);
+
   const hud = new Hud(root);
-  // eslint-disable-next-line no-new
-  new Game(app, hud);
+  const minimap = new Minimap(root);
+  minimap.setVisible(false);
+
+  new SettingsPanel(root, {
+    onPause: () => app.ticker.stop(),
+    onResume: () => app.ticker.start(),
+  });
+
+  // Title screen gates the run start.
+  let started = false;
+  const title = new TitleScreen(root);
+  const best = meta.getProfile().bestTimeSec;
+  if (best > 0) title.setStats(`Best time ${formatTime(best)}`);
+  title.onPlay(() => {
+    if (started) return;
+    started = true;
+    title.hide();
+    minimap.setVisible(true);
+    // eslint-disable-next-line no-new
+    new Game(app, hud, minimap);
+  });
+  title.show();
 }
 
 void main();

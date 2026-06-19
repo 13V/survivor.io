@@ -35,6 +35,10 @@ import { SpatialHash } from '../core/spatialHash';
 import { Hud, type LevelOption } from '../ui/hud';
 import * as C from '../config';
 import { rand, pick } from '../core/rng';
+import { audio } from '../audio/sfx';
+import { meta } from '../meta/save';
+import { settings } from '../ui/settings';
+import type { Minimap } from '../ui/minimap';
 
 interface WeaponInst {
   def: WeaponDef;
@@ -120,10 +124,13 @@ export class Game {
   private win = false;
   private state: State = 'play';
   private acc = 0;
+  private lastHitSfx = -1;
+  private lastPickSfx = -1;
 
   constructor(
     private app: Application,
     private hud: Hud,
+    private minimap: Minimap,
   ) {
     this.tex = createTextures(app.renderer);
     this.bg = new TilingSprite({
@@ -298,7 +305,12 @@ export class Game {
     const dmg = base * (crit ? this.mods.critDmg : 1);
     Enemy.hp[eid] -= dmg;
     Enemy.flash[eid] = 0.09;
-    this.spawnDmgNum(Position.x[eid], Position.y[eid] - Enemy.radius[eid], dmg, crit);
+    if (settings.showDamageNumbers)
+      this.spawnDmgNum(Position.x[eid], Position.y[eid] - Enemy.radius[eid], dmg, crit);
+    if (this.time - this.lastHitSfx > 0.05) {
+      audio.hit();
+      this.lastHitSfx = this.time;
+    }
     if (Enemy.hp[eid] <= 0) {
       this.dead.add(eid);
       this.killList.push(eid);
@@ -358,6 +370,7 @@ export class Game {
             s.radius,
           );
         }
+        audio.shoot();
       } else if (w.def.type === 'zap') {
         this.hash.queryRadius(p.x, p.y, s.range, this.cand);
         const list = this.cand
@@ -467,6 +480,8 @@ export class Game {
       removeEntity(this.world, e);
     }
     this.bossEid = this.spawnEnemy(0, this.player.x, this.player.y - 360, true);
+    audio.bossSpawn();
+    audio.setBossMode(true);
   }
 
   private updateEnemies(dt: number): void {
@@ -563,6 +578,7 @@ export class Game {
       if (dx * dx + dy * dy < (p.radius + er) * (p.radius + er)) {
         p.hp -= Enemy.dmg[e];
         p.invuln = C.PLAYER_INVULN;
+        audio.playerHurt();
         break;
       }
     }
@@ -601,6 +617,10 @@ export class Game {
         } else {
           this.xp += Gem.value[e] * this.mods.xpMul;
         }
+        if (this.time - this.lastPickSfx > 0.04) {
+          audio.pickup();
+          this.lastPickSfx = this.time;
+        }
         this.gemDead.add(e);
       }
     }
@@ -621,6 +641,7 @@ export class Game {
         if (dx * dx + dy * dy < tg.r * tg.r && this.player.invuln <= 0) {
           this.player.hp -= tg.dmg;
           this.player.invuln = C.PLAYER_INVULN;
+          audio.playerHurt();
         }
         tg.g.destroy();
         this.tele.splice(i, 1);
@@ -669,6 +690,7 @@ export class Game {
   }
 
   private openLevelUp(): void {
+    audio.levelUp();
     this.state = 'paused';
     this.input.enabled = false;
     this.hud.showLevelUp(this.buildOptions(), (o) => this.applyOption(o));
@@ -756,6 +778,8 @@ export class Game {
   private end(title: string): void {
     this.state = 'over';
     this.input.enabled = false;
+    audio.setBossMode(false);
+    meta.recordRun({ timeSec: this.time, kills: this.kills, level: this.level });
     const mm = Math.floor(this.time / 60);
     const ss = Math.floor(this.time % 60);
     this.hud.showEnd(
@@ -818,6 +842,9 @@ export class Game {
     this.recompute();
     this.hud.hideEnd();
     this.hud.hideLevelUp();
+    this.minimap.setVisible(true);
+    audio.setBossMode(false);
+    audio.startMusic();
   }
 
   private step(dt: number): void {
@@ -911,6 +938,23 @@ export class Game {
       passives: [...this.passives].map(([id, lvl]) => ({ icon: PASSIVES[id].icon, level: lvl })),
       joy: this.input.joy,
       boss,
+    });
+
+    // minimap snapshot (cheap: sample up to ~60 enemies)
+    const ents = enemyQuery(this.world);
+    const mmBlips: { x: number; y: number; kind: 0 | 1 | 2 }[] = [];
+    const stride = Math.max(1, Math.ceil(ents.length / 60));
+    for (let i = 0; i < ents.length && mmBlips.length < 60; i += stride) {
+      const e = ents[i];
+      if (Enemy.boss[e]) continue;
+      mmBlips.push({ x: Position.x[e], y: Position.y[e], kind: Enemy.kind[e] as 0 | 1 | 2 });
+    }
+    this.minimap.update({
+      px: p.x,
+      py: p.y,
+      range: 1100,
+      blips: mmBlips,
+      boss: boss ? { x: Position.x[this.bossEid], y: Position.y[this.bossEid] } : null,
     });
   }
 

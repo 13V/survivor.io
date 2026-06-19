@@ -19,6 +19,7 @@ import {
 } from 'bitecs';
 import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
 import { createTextures, type Textures } from './textures';
+import { Particles } from './particles';
 import {
   WEAPONS,
   PASSIVES,
@@ -140,6 +141,7 @@ export class Game {
   private petPos = { x: 0, y: 0 };
   private petAngle = 0;
   private petTimer = 0;
+  private particles!: Particles;
 
   constructor(
     private app: Application,
@@ -157,6 +159,7 @@ export class Game {
     });
     app.stage.addChild(this.bg);
     app.stage.addChild(this.worldC);
+    this.particles = new Particles(app.renderer, this.worldC);
 
     this.playerSprite = new Sprite(this.tex.player);
     this.playerSprite.anchor.set(0.5);
@@ -444,6 +447,7 @@ export class Game {
     const dmg = base * (crit ? this.mods.critDmg : 1);
     Enemy.hp[eid] -= dmg;
     Enemy.flash[eid] = 0.09;
+    this.particles.spark(Position.x[eid], Position.y[eid], 0xfff2a0);
     if (settings.showDamageNumbers)
       this.spawnDmgNum(Position.x[eid], Position.y[eid] - Enemy.radius[eid], dmg, crit);
     if (this.time - this.lastHitSfx > 0.05) {
@@ -611,6 +615,7 @@ export class Game {
     this.bossEid = this.spawnEnemy(bk, this.player.x, this.player.y - 360);
     audio.bossSpawn();
     audio.setBossMode(true);
+    this.particles.ring(Position.x[this.bossEid], Position.y[this.bossEid], 0xff5050, 120);
     this.addShake(16);
     this.flash('#ff5050', 0.3);
     this.hitstop = 0.05;
@@ -775,6 +780,12 @@ export class Game {
           this.spawnHazard(hx, hy, Math.cos(a) * 200, Math.sin(a) * 200, Enemy.dmg[e] * 0.8, 9, 0xff5530);
         }
       }
+      this.particles.burst(
+        Position.x[e],
+        Position.y[e],
+        ENEMY_DEFS[Enemy.kind[e]].tint ?? 0xffffff,
+        Enemy.boss[e] ? 48 : 12,
+      );
       this.kills++;
       this.releaseSprite(e);
       removeEntity(this.world, e);
@@ -937,6 +948,7 @@ export class Game {
         this.addShake(12);
         this.hitstop = 0.06;
         this.spawnNovaRing(this.player.x, this.player.y, 150, evDef.color);
+        this.particles.ring(this.player.x, this.player.y, evDef.color, 150);
         break;
       }
     }
@@ -1145,6 +1157,7 @@ export class Game {
     this.updateTelegraphs(dt);
     this.updateDmgNums(dt);
     this.updateFx(dt);
+    this.particles.update(dt);
 
     this.checkLevelUp();
     this.checkEnd();

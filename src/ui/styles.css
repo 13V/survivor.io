@@ -3,6 +3,9 @@
   --gold: #ffd24a;
   --blue: #5ab0ff;
   --panel: rgba(14, 18, 26, 0.82);
+  --red: #ff4d5e;
+  --stroke: rgba(255, 255, 255, 0.14);
+  --ink: 0 2px 6px rgba(0, 0, 0, 0.9);
 }
 
 * {
@@ -53,14 +56,21 @@ canvas {
 
 .timer {
   font-size: 26px;
-  text-shadow: 0 2px 4px #000;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 2px 4px #000, 0 0 14px rgba(0, 0, 0, 0.6);
 }
 
 .kills {
   font-size: 16px;
+  font-variant-numeric: tabular-nums;
   background: var(--panel);
-  padding: 4px 10px;
+  padding: 4px 12px;
   border-radius: 20px;
+  border: 1px solid var(--stroke);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.5);
+  text-shadow: var(--ink);
 }
 
 .xpwrap {
@@ -69,13 +79,45 @@ canvas {
   background: rgba(0, 0, 0, 0.5);
   border-radius: 10px;
   overflow: hidden;
+  border: 1px solid var(--stroke);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
 }
 
 .xpbar {
+  position: relative;
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #6a8bff, #a06bff);
-  transition: width 0.12s linear;
+  border-radius: 10px;
+  background: linear-gradient(180deg, #8aa2ff 0%, #6a8bff 45%, #a06bff 100%);
+  box-shadow: 0 0 10px rgba(122, 130, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* animated sheen sweeping across the XP fill */
+.xpbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    100deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.5) 50%,
+    transparent 80%
+  );
+  background-size: 220% 100%;
+  animation: xp-sheen 2.6s linear infinite;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+@keyframes xp-sheen {
+  from {
+    background-position: 180% 0;
+  }
+  to {
+    background-position: -80% 0;
+  }
 }
 
 .lvl {
@@ -86,22 +128,35 @@ canvas {
   justify-content: center;
   font-size: 11px;
   font-weight: 700;
-  text-shadow: 0 1px 2px #000;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.8);
 }
 
 .bosswrap {
+  position: relative;
   height: 10px;
   background: rgba(0, 0, 0, 0.5);
   border-radius: 6px;
   overflow: hidden;
-  border: 1px solid rgba(255, 80, 80, 0.5);
+  border: 1px solid rgba(255, 80, 80, 0.55);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 60, 70, 0.3);
 }
 
 .bossbar {
+  position: relative;
   height: 100%;
   width: 100%;
-  background: linear-gradient(90deg, #ff4d5e, #ff8a3c);
+  background: linear-gradient(180deg, #ff6b78 0%, #ff4d5e 45%, #ff8a3c 100%);
+  box-shadow: 0 0 8px rgba(255, 90, 70, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: width 0.1s linear;
+}
+
+.bossbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 55%);
+  pointer-events: none;
 }
 
 .skills {
@@ -114,29 +169,41 @@ canvas {
   position: relative;
   width: 34px;
   height: 34px;
-  border-radius: 8px;
-  background: var(--panel);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(40, 48, 64, 0.92), rgba(14, 18, 26, 0.92));
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--stroke);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 5px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 .chip.wpn {
-  border-color: rgba(255, 210, 74, 0.6);
+  border-color: rgba(255, 210, 74, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 9px rgba(255, 210, 74, 0.35),
+    0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
 .chip.pas {
-  border-color: rgba(90, 176, 255, 0.6);
+  border-color: rgba(90, 176, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 9px rgba(90, 176, 255, 0.35),
+    0 2px 5px rgba(0, 0, 0, 0.5);
 }
 
 .chip b {
   position: absolute;
-  right: 2px;
-  bottom: 0;
+  right: 1px;
+  bottom: -1px;
   font-size: 10px;
+  font-weight: 800;
   color: var(--gold);
+  text-shadow: 0 1px 2px #000, 0 0 3px #000;
+}
+
+.chip.pas b {
+  color: var(--blue);
 }
 
 .hpwrap {
@@ -148,13 +215,55 @@ canvas {
   overflow: hidden;
   width: min(440px, 80%);
   align-self: center;
+  border: 1px solid var(--stroke);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
 .hpbar {
+  position: relative;
   height: 100%;
   width: 100%;
+  /* JS sets a flat background color (green / red) inline; overlays below
+     supply the gloss + gradient + low-HP pulse so the look survives. */
   background: var(--green);
-  transition: width 0.12s linear;
+  box-shadow: 0 0 8px rgba(70, 209, 122, 0.35);
+  transition: width 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* glossy top highlight + bottom shade, tints whatever flat color JS sets */
+.hpbar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    rgba(255, 255, 255, 0.08) 45%,
+    rgba(0, 0, 0, 0.18) 100%
+  );
+  pointer-events: none;
+}
+
+/* always-on subtle breathing glow; reads as a low-HP heartbeat when the
+   bar is narrow and JS has swapped the fill to red (CSS-only, no class needed) */
+.hpbar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.12);
+  opacity: 0;
+  animation: hp-pulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes hp-pulse {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.22;
+  }
 }
 
 .hptext {
@@ -164,8 +273,11 @@ canvas {
   align-items: center;
   justify-content: center;
   font-size: 12px;
-  font-weight: 700;
-  text-shadow: 0 1px 2px #000;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  text-shadow: 0 1px 2px #000, 0 0 5px rgba(0, 0, 0, 0.9);
+  z-index: 1;
 }
 
 /* ---- joystick ---- */
@@ -185,8 +297,13 @@ canvas {
   width: 128px;
   height: 128px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.08);
+  background: radial-gradient(
+    circle at 50% 50%,
+    rgba(255, 255, 255, 0.04) 60%,
+    rgba(255, 255, 255, 0.12) 100%
+  );
   border: 2px solid rgba(255, 255, 255, 0.22);
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.35), 0 2px 10px rgba(0, 0, 0, 0.4);
 }
 
 .joyknob {
@@ -196,7 +313,13 @@ canvas {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.32);
+  background: radial-gradient(
+    circle at 38% 32%,
+    rgba(255, 255, 255, 0.6),
+    rgba(255, 255, 255, 0.28) 70%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 1px 3px rgba(255, 255, 255, 0.5), 0 3px 8px rgba(0, 0, 0, 0.5);
 }
 
 /* ---- overlays ---- */
@@ -222,7 +345,8 @@ canvas {
   font-size: 28px;
   letter-spacing: 3px;
   color: var(--gold);
-  text-shadow: 0 2px 8px #000;
+  text-shadow: 0 2px 8px #000, 0 0 20px rgba(255, 210, 74, 0.45);
+  animation: pop-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .cards {
@@ -234,11 +358,12 @@ canvas {
 }
 
 .card {
+  position: relative;
   width: 200px;
   min-height: 170px;
   border-radius: 14px;
-  background: linear-gradient(180deg, #1b2130, #11151f);
-  border: 2px solid #333;
+  background: linear-gradient(180deg, #1f2636, #11151f);
+  border: 2px solid #3a4254;
   color: #fff;
   cursor: pointer;
   padding: 16px;
@@ -246,72 +371,219 @@ canvas {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 16px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, border-color 0.12s ease;
+  animation: card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* soft top sheen on every card */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 40%);
+  pointer-events: none;
+}
+
+/* staggered entrance for up to a few cards */
+.card:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.card:nth-child(2) {
+  animation-delay: 0.08s;
+}
+.card:nth-child(3) {
+  animation-delay: 0.14s;
+}
+.card:nth-child(4) {
+  animation-delay: 0.2s;
 }
 
 .card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-6px) scale(1.02);
+}
+
+.card:active {
+  transform: translateY(-2px) scale(0.99);
 }
 
 .card.wpn {
   border-color: var(--gold);
-  box-shadow: 0 0 18px rgba(255, 210, 74, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 18px rgba(255, 210, 74, 0.25),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.card.wpn:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 30px rgba(255, 210, 74, 0.5),
+    0 10px 22px rgba(0, 0, 0, 0.55);
 }
 
 .card.pas {
   border-color: var(--blue);
-  box-shadow: 0 0 18px rgba(90, 176, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 18px rgba(90, 176, 255, 0.25),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.card.pas:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 30px rgba(90, 176, 255, 0.5),
+    0 10px 22px rgba(0, 0, 0, 0.55);
 }
 
 .card.heal {
   border-color: #ff5d6c;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 18px rgba(255, 93, 108, 0.25),
+    0 6px 16px rgba(0, 0, 0, 0.5);
+}
+
+.card.heal:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 30px rgba(255, 93, 108, 0.5),
+    0 10px 22px rgba(0, 0, 0, 0.55);
 }
 
 .card-ico {
   font-size: 44px;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.6));
 }
 
 .card-title {
   font-weight: 800;
   font-size: 17px;
   text-align: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .card-sub {
   font-size: 12px;
   opacity: 0.78;
   text-align: center;
+  line-height: 1.35;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.end {
+  animation: fade-in 0.4s ease both;
 }
 
 .end h1 {
   margin: 0;
   font-size: 40px;
-  text-shadow: 0 3px 10px #000;
+  letter-spacing: 2px;
+  text-shadow: 0 3px 10px #000, 0 0 24px rgba(0, 0, 0, 0.6);
+  animation: pop-in 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
 .end-stats {
   margin: 0;
   opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  line-height: 1.5;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
 .btn {
   pointer-events: auto;
-  background: var(--green);
+  background: linear-gradient(180deg, #5fe093 0%, var(--green) 55%, #2fa75c 100%);
   color: #06210f;
   border: none;
   font-weight: 800;
   font-size: 18px;
+  letter-spacing: 0.5px;
   padding: 12px 28px;
   border-radius: 12px;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18), 0 6px 16px rgba(46, 167, 92, 0.4);
+  transition: transform 0.08s ease, box-shadow 0.12s ease, filter 0.12s ease;
+}
+
+.btn:hover {
+  filter: brightness(1.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18), 0 8px 22px rgba(46, 167, 92, 0.55);
 }
 
 .btn:active {
-  transform: scale(0.97);
+  transform: translateY(1px) scale(0.98);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(46, 167, 92, 0.35);
 }
 
 .hint {
   font-size: 12px;
   opacity: 0.6;
   margin: 0;
+  text-align: center;
+  padding: 0 16px;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  .xpbar::after,
+  .hpbar::after {
+    animation: none;
+  }
+  .card,
+  .overlay h2,
+  .end,
+  .end h1 {
+    animation-duration: 0.01ms;
+  }
+}
+
+/* mobile / small screens: tighten HUD, scale cards down to fit */
+@media (max-width: 480px) {
+  .timer {
+    font-size: 22px;
+  }
+  .overlay h2 {
+    font-size: 24px;
+  }
+  .end h1 {
+    font-size: 32px;
+  }
+  .card {
+    width: 150px;
+    min-height: 150px;
+    padding: 12px;
+  }
+  .card-ico {
+    font-size: 38px;
+  }
+  .card-title {
+    font-size: 15px;
+  }
+  .cards {
+    gap: 10px;
+  }
 }

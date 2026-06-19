@@ -1,5 +1,5 @@
-In-game character, enemy and boss sprites are from the "Zombie Apocalypse Tileset"
-by Ittai Manero (https://ittaimanero.itch.io/zombie-apocalypse-tileset).
+In-game character, enemy, scenery and FX sprites are from the "Zombie Apocalypse
+Tileset" by Ittai Manero (https://ittaimanero.itch.io/zombie-apocalypse-tileset).
 
 License (from the pack's itch.io page):
   "These assets may be used in both personal and commercial projects, may be edited
@@ -10,15 +10,25 @@ IMPORTANT: because redistribution is not permitted, the raw sprites are kept ONL
 this PRIVATE repository. Do not make this repository public, and do not otherwise
 redistribute these PNGs. Crediting Ittai Manero in the shipped game is appreciated.
 
-Mapped into the game (one frame each, baked to match each procedural slot and
-rendered with nearest-neighbour scaling so the low-res pixel art stays crisp):
-  player.png  <- Player Character Walking (frame 1)
-  enemy0.png  <- Skinny Zombie  (basic / kind 0)
-  enemy1.png  <- Kid Zombie     (fast  / kind 1)
-  enemy2.png  <- Big Zombie     (tank  / kind 2)
-  boss.png    <- Big Zombie     (boss, upscaled)
+All art is low-res (~16px) pixel art, baked with nearest-neighbour scaling so it stays
+crisp. Characters/enemies are drawn upright (no aim-rotation) and mirrored by facing.
 
-Sprites are drawn upright (no aim-rotation) and mirrored horizontally by movement,
-which suits top-down pixel art. Projectiles, blades, gems and the ground remain
-procedurally generated. If these PNGs are removed, the game falls back to
-procedural art automatically.
+Static slots (all-or-nothing; the game falls back to procedural art if any is missing):
+  player.png  <- Player walk frame 1
+  enemy0.png  <- Skinny zombie (texKind 0)
+  enemy1.png  <- Kid zombie    (texKind 1)
+  enemy2.png  <- Big zombie    (texKind 2)
+  boss.png    <- Big zombie    (boss)
+
+Animation + scenery layer (best-effort; each feature degrades independently):
+  player_0..8                          hero walk cycle
+  z0_* / z1_* / z2_*                   skinny / kid / big zombie walk cycles
+  zt_0..11                             turret zombie (ranged "shooter" enemies)
+  fx_exp_0..5                          explosion (played on enemy death)
+  fx_blood_0..4                        blood splatter (played on hits)
+  money.png                            XP gem pickup
+  ground.png                           terrain ground tile
+  tree_* / bush_* / tomb_0 / sit_0 / corpse_0   scattered scenery props
+
+Projectiles, blades and the heal pickup remain procedurally generated. If any of
+these PNGs are removed, the affected feature falls back automatically.

@@ -84,6 +84,9 @@ const gemQuery = defineQuery([Gem, Position]);
 // Base sprite radius per texKind (0 zombie, 1 runner, 2 brute, 3 boss).
 const ENEMY_BASE_R = [16, 13, 24, 58];
 
+// Walk-cycle / FX playback rate for the art-pack animation layer (frames per second).
+const ANIM_FPS = 9;
+
 export class Game {
   private world: IWorld = createWorld();
   private tex: Textures;
@@ -144,6 +147,17 @@ export class Game {
   private petTimer = 0;
   private particles!: Particles;
   private artUpright = false;
+  // Art-pack animation + scenery layer (populated only when the extras loaded).
+  private decoC = new Container();
+  private fxC = new Container();
+  private animClock = 0;
+  private animFrame = 0;
+  private prevPx = 0;
+  private prevPy = 0;
+  private playerWalk: Texture[] | null = null;
+  private enemyWalk: (Texture[] | undefined)[] = [];
+  private animFx: { s: Sprite; frames: Texture[]; t: number; dur: number }[] = [];
+  private fxPool: Sprite[] = [];
 
   constructor(
     private app: Application,
@@ -162,6 +176,7 @@ export class Game {
     });
     app.stage.addChild(this.bg);
     app.stage.addChild(this.worldC);
+    this.worldC.addChild(this.decoC); // scenery props render behind the cast
     this.particles = new Particles(app.renderer, this.worldC);
 
     this.playerSprite = new Sprite(this.tex.player);
@@ -172,6 +187,9 @@ export class Game {
     this.petSprite.anchor.set(0.5);
     this.petSprite.visible = false;
     this.worldC.addChild(this.petSprite);
+
+    this.worldC.addChild(this.fxC); // hit / death FX render above the cast
+    this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
 
     window.addEventListener('resize', () => this.onResize());
 
@@ -186,6 +204,9 @@ export class Game {
   }
 
   private makeGroundTexture(): Texture {
+    // Use the art pack's terrain tile when available; else the procedural dark grid.
+    const gt = this.tex.anim?.ground;
+    if (gt) return gt;
     const g = new Graphics()
       .rect(0, 0, 64, 64)
       .fill(0x161a22)
@@ -194,6 +215,25 @@ export class Game {
     const t = this.app.renderer.generateTexture(g);
     g.destroy();
     return t;
+  }
+
+  // Scatter static scenery (trees/bushes/tombstones/etc.) around the arena. Purely
+  // visual — placed behind the cast in decoC and left to scroll with the world.
+  private scatterProps(): void {
+    for (const c of this.decoC.removeChildren()) c.destroy();
+    const props = this.tex.anim?.props;
+    if (!props || !props.length) return;
+    const R = 2400; // half-extent of the decorated area around the spawn
+    for (let i = 0; i < 120; i++) {
+      const px = (Math.random() * 2 - 1) * R;
+      const py = (Math.random() * 2 - 1) * R;
+      if (px * px + py * py < 170 * 170) continue; // keep the spawn point clear
+      const s = new Sprite(props[(Math.random() * props.length) | 0]);
+      s.anchor.set(0.5, 0.7); // rest props on their base
+      s.position.set(px, py);
+      s.alpha = 0.9;
+      this.decoC.addChild(s);
+    }
   }
 
   private onResize(): void {
@@ -289,6 +329,7 @@ export class Game {
       s.visible = false;
       this.freeSprites.push(s);
       this.spr[eid] = undefined;
+      this.enemyWalk[eid] = undefined;
     }
   }
 
@@ -319,10 +360,27 @@ export class Game {
           ? (def.chargeCd ?? 3)
           : 99999;
     Enemy.knock[eid] = 0;
-    const tex = def.texKind === 3 ? this.tex.boss : this.tex.enemy[def.texKind];
-    const s = this.acquireSprite(tex);
-    s.scale.set(def.radius / ENEMY_BASE_R[def.texKind]);
+    // Pick the visual: shooter enemies become the turret zombie; everything else
+    // uses its texKind slot (boss = the big zombie). Walk frames, when present,
+    // drive the animation in render(); the turret is sized like a runner (kind 1).
+    const anim = this.tex.anim;
+    const useTurret = !!(anim && def.ai === 'shooter' && anim.turret.length);
+    const sizeKind = useTurret ? 1 : def.texKind;
+    const baseTex = useTurret
+      ? anim!.turret[0]
+      : def.texKind === 3
+        ? this.tex.boss
+        : this.tex.enemy[def.texKind];
+    const s = this.acquireSprite(baseTex);
+    s.scale.set(def.radius / ENEMY_BASE_R[sizeKind]);
     this.spr[eid] = s;
+    let frames: Texture[] | undefined;
+    if (anim) {
+      if (useTurret) frames = anim.turret;
+      else if (def.texKind === 3) frames = anim.boss.length ? anim.boss : undefined;
+      else frames = anim.enemy[def.texKind] ?? undefined;
+    }
+    this.enemyWalk[eid] = frames;
     return eid;
   }
 
@@ -451,6 +509,9 @@ export class Game {
     Enemy.hp[eid] -= dmg;
     Enemy.flash[eid] = 0.09;
     this.particles.spark(Position.x[eid], Position.y[eid], 0xfff2a0);
+    const bl = this.tex.anim?.blood;
+    if (bl?.length && this.animFx.length < 48 && Math.random() < 0.33)
+      this.spawnAnimFx(bl, Position.x[eid], Position.y[eid], 1, 0.28);
     if (settings.showDamageNumbers)
       this.spawnDmgNum(Position.x[eid], Position.y[eid] - Enemy.radius[eid], dmg, crit);
     if (this.time - this.lastHitSfx > 0.05) {
@@ -789,6 +850,9 @@ export class Game {
         ENEMY_DEFS[Enemy.kind[e]].tint ?? 0xffffff,
         Enemy.boss[e] ? 48 : 12,
       );
+      const ex = this.tex.anim?.explosion;
+      if (ex?.length)
+        this.spawnAnimFx(ex, Position.x[e], Position.y[e], Enemy.boss[e] ? 2.6 : 1.05, 0.45);
       this.kills++;
       this.releaseSprite(e);
       removeEntity(this.world, e);
@@ -905,6 +969,41 @@ export class Game {
         f.g.destroy();
         this.fx.splice(i, 1);
       }
+    }
+  }
+
+  // ---- animated sprite FX (explosions / blood from the art pack) -------------
+  // Plays a one-shot frame sequence at (x, y); pooled so deaths/hits are cheap.
+  private spawnAnimFx(frames: Texture[], x: number, y: number, scale: number, dur: number): void {
+    let s = this.fxPool.pop();
+    if (!s) {
+      s = new Sprite();
+      s.anchor.set(0.5);
+    }
+    s.texture = frames[0];
+    s.position.set(x, y);
+    s.scale.set(scale);
+    s.alpha = 1;
+    s.rotation = Math.random() * Math.PI * 2;
+    s.visible = true;
+    this.worldC.addChild(this.fxC); // keep FX above any enemies pooled since boot
+    this.fxC.addChild(s);
+    this.animFx.push({ s, frames, t: 0, dur });
+  }
+
+  private updateAnimFx(dt: number): void {
+    for (let i = this.animFx.length - 1; i >= 0; i--) {
+      const f = this.animFx[i];
+      f.t += dt;
+      const k = (f.t / f.dur) * f.frames.length;
+      if (k >= f.frames.length) {
+        this.fxC.removeChild(f.s);
+        f.s.visible = false;
+        this.fxPool.push(f.s);
+        this.animFx.splice(i, 1);
+        continue;
+      }
+      f.s.texture = f.frames[k | 0];
     }
   }
 
@@ -1085,6 +1184,15 @@ export class Game {
     this.tele = [];
     for (const f of this.fx) f.g.destroy();
     this.fx = [];
+    for (const f of this.animFx) {
+      this.fxC.removeChild(f.s);
+      f.s.visible = false;
+      this.fxPool.push(f.s);
+    }
+    this.animFx = [];
+    this.animClock = 0;
+    this.enemyWalk = [];
+    this.scatterProps();
     for (const w of this.weapons) for (const b of w.blades) b.destroy();
 
     this.weapons = [];
@@ -1140,6 +1248,8 @@ export class Game {
 
   private step(dt: number): void {
     this.time += dt;
+    this.animClock += dt;
+    this.animFrame = (this.animClock * ANIM_FPS) | 0;
     this.shakeMag = Math.max(0, this.shakeMag - 50 * dt);
     this.input.update();
     this.movePlayer(dt);
@@ -1162,6 +1272,7 @@ export class Game {
     this.updateTelegraphs(dt);
     this.updateDmgNums(dt);
     this.updateFx(dt);
+    this.updateAnimFx(dt);
     this.particles.update(dt);
 
     this.checkLevelUp();
@@ -1185,6 +1296,15 @@ export class Game {
       if (fx < -0.01) this.playerSprite.scale.x = -Math.abs(this.playerSprite.scale.x);
       else if (fx > 0.01) this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x);
     }
+    if (this.playerWalk) {
+      // Cycle the walk frames while moving; rest on frame 0 when standing still.
+      const moving = Math.abs(p.x - this.prevPx) + Math.abs(p.y - this.prevPy) > 0.02;
+      this.prevPx = p.x;
+      this.prevPy = p.y;
+      this.playerSprite.texture = moving
+        ? this.playerWalk[this.animFrame % this.playerWalk.length]
+        : this.playerWalk[0];
+    }
     if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
 
     for (const e of enemyQuery(this.world)) {
@@ -1201,6 +1321,9 @@ export class Game {
       // upright top-down art: stay level, face the player by horizontal mirror
       if (this.artUpright)
         s.scale.x = p.x < Position.x[e] ? -Math.abs(s.scale.x) : Math.abs(s.scale.x);
+      // Walk-cycle animation, offset per entity so the horde isn't in lockstep.
+      const fr = this.enemyWalk[e];
+      if (fr) s.texture = fr[(this.animFrame + e) % fr.length];
     }
     for (const e of projQuery(this.world)) {
       const s = this.spr[e];

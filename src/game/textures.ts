@@ -16,7 +16,8 @@
 // they stay light/neutral with a white-hot core that survives any tint.
 import { Graphics, Texture } from 'pixi.js';
 import type { Renderer } from 'pixi.js';
-import { applyAssetPack } from './assetPack';
+import { applyAssetPack, buildAnimPack } from './assetPack';
+import type { AnimPack } from './assetPack';
 
 export interface Textures {
   player: Texture;
@@ -25,6 +26,8 @@ export interface Textures {
   projectile: Texture;
   blade: Texture;
   gem: Texture[]; // 0 green, 1 blue, 2 gold, 3 heal
+  // Best-effort animation + scenery layer from the art pack (null in procedural mode).
+  anim?: AnimPack | null;
 }
 
 // Bake a Graphics into a texture and clean it up. All builders funnel through here.
@@ -520,8 +523,16 @@ export function createTextures(renderer: Renderer): Textures {
       makeHealGem(renderer),                              // 3 heal (red cross)
     ],
   };
-  // Overlay the CC0 art pack onto the character/enemy/boss slots if it loaded.
+  // Overlay the real art pack onto the character/enemy/boss slots if it loaded,
+  // then bake the optional animation + scenery layer on top.
   applyAssetPack(renderer, tex);
+  tex.anim = buildAnimPack(renderer, tex);
+  // XP gems become the pack's money pickup (the heal pickup stays procedural).
+  if (tex.anim?.money) {
+    tex.gem[0] = tex.anim.money;
+    tex.gem[1] = tex.anim.money;
+    tex.gem[2] = tex.anim.money;
+  }
   return tex;
 }
 

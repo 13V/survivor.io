@@ -1,68 +1,72 @@
-// HD zombie enemies — 8-direction sheets (same family as the survivor) plus FX strips.
+// HD zombie enemies — memory-efficient 8-direction via 5 stored directions + mirroring,
+// with each sheet alpha-trimmed of its empty padding.
 //
-// Character sheets are a 15-frame x 8-direction grid; cell = width/15 x height/8 (the
-// source mixes 128/192px cells and we downscale to 64px, so we derive it per sheet).
-// Acid/Blood are 15-frame single-row FX strips. Types are grouped into pools that match
-// the game's four enemy classes (texKind 0=walkers, 1=fast, 2=brutes, 3=bosses); each
-// spawn picks a random type for a varied horde, while named bosses get a signature type.
+// Top-down characters are horizontally symmetric, so we only store 5 directions
+// (E, SE, S, N, NE); W/SW/NW are the same rows rendered with a horizontal flip. Each
+// sheet is also cropped to the figures' bounding box (most of a cell is transparent),
+// and a per-sheet anchorY (baked in atlas.json) keeps the feet planted at the same world
+// point regardless of the crop -- so trimming is invisible to gameplay but cuts GPU
+// memory enough to load 6 animations (Run/Walk/Attack1/Attack2/Die/Die2) for all 36 types.
 import { Assets, Texture, Rectangle } from 'pixi.js';
-import type { DirAnim } from './survivorSprite';
 
 const COLS = 15;
-const ROWS = 8;
+const ROWS = 5; // stored directions: 0=E 1=SE 2=S 3=N 4=NE
+export const ORIG_CELL = 64; // source cell size before trimming (display-scale basis)
+
+// dirRow() 8-dir index -> stored row + horizontal flip.
+const DIR5 = [0, 1, 2, 1, 0, 4, 3, 4];
+const FLIP5 = [false, false, false, true, true, true, false, false];
+export function dir5(d8: number): { row: number; flip: boolean } {
+  return { row: DIR5[d8], flip: FLIP5[d8] };
+}
 
 export const ZOMBIE_POOLS: string[][] = [
-  // 0 walkers (the common horde): all males + females
   [
     'ZombieMale1', 'ZombieMale2', 'ZombieMale3', 'ZombieMale4', 'ZombieMale5', 'ZombieMale6',
     'ZombieMale7', 'ZombieMale8', 'ZombieMale9', 'ZombieFemale1', 'ZombieFemale2', 'ZombieFemale3',
     'ZombieFemale4', 'ZombieFemale5', 'ZombieFemale6', 'ZombieFemale7',
   ],
-  // 1 fast / small: uniformed + agile (cops, soldiers, radioactive)
   [
     'ZombieCop1', 'ZombieCop2', 'ZombieCop3', 'ZombieCop4', 'ZombieSoldier1', 'ZombieSoldier2',
     'ZombieSoldier3', 'ZombieSoldier4', 'ZombieSoldier5', 'ZombieSoldier6', 'ZombieRadioactive1',
     'ZombieRadioactive2', 'ZombieRadioactive3',
   ],
-  // 2 brutes
   ['ZombieHulk1', 'ZombieHulk2', 'ZombieMonster1', 'ZombieMonster2', 'ZombieMonster3'],
-  // 3 boss pool fallback
   ['ZombieGeneral1', 'ZombieGeneral2'],
 ];
 
-// Signature zombie for named bosses (falls back to the class pool if unset/unloaded).
 export const ZOMBIE_BY_ID: Record<string, string> = {
-  colossus: 'ZombieHulk2',
-  titan: 'ZombieHulk1',
-  leviathan: 'ZombieMonster3',
-  reaper: 'ZombieMonster2',
-  warden: 'ZombieGeneral2',
-  artillerist: 'ZombieGeneral1',
-  broodmother: 'ZombieMonster1',
-  rampager: 'ZombieMonster3',
-  tempest: 'ZombieRadioactive2',
-  warlord: 'ZombieGeneral2',
+  colossus: 'ZombieHulk2', titan: 'ZombieHulk1', leviathan: 'ZombieMonster3', reaper: 'ZombieMonster2',
+  warden: 'ZombieGeneral2', artillerist: 'ZombieGeneral1', broodmother: 'ZombieMonster1',
+  rampager: 'ZombieMonster3', tempest: 'ZombieRadioactive2', warlord: 'ZombieGeneral2',
 };
 
 const ALL = [...new Set([...ZOMBIE_POOLS.flat(), ...Object.values(ZOMBIE_BY_ID)])];
-const ANIMS = ['Run', 'Die', 'Attack1'] as const;
+const ANIMS = ['Run', 'Walk', 'Attack1', 'Attack2', 'Die', 'Die2'] as const;
 const FX = ['Acid1', 'Acid2', 'Acid3', 'Acid4', 'Acid5', 'Blood1', 'Blood2', 'Blood3', 'Blood4', 'Blood5'];
 
+export interface DirAnimZ {
+  frames: Texture[][]; // [5 stored dirs][frame]
+  count: number;
+  fps: number;
+  anchorY: number; // baked feet line for this (trimmed) sheet
+}
 export interface ZombieAnims {
-  run: DirAnim;
-  die: DirAnim | null;
-  attack: DirAnim | null;
-  cell: number; // px size of one frame cell (for display scaling)
+  run: DirAnimZ;
+  walk: DirAnimZ;
+  attack: DirAnimZ[]; // Attack1, Attack2
+  die: DirAnimZ[]; // Die, Die2
 }
 export type ZombieSet = Record<string, ZombieAnims>;
 export interface ZombieAssets {
   types: ZombieSet;
-  acid: Texture[][]; // variants x 15 frames
+  acid: Texture[][];
   blood: Texture[][];
 }
 
 const raw: Record<string, Partial<Record<string, Texture>>> = {};
 const rawFx: Record<string, Texture> = {};
+let manifest: { ground: number; anchorY: Record<string, Record<string, number>> } | null = null;
 
 function url(path: string): string {
   const base = typeof document !== 'undefined' ? document.baseURI : '/';
@@ -70,6 +74,11 @@ function url(path: string): string {
 }
 
 export async function preloadZombies(): Promise<void> {
+  try {
+    manifest = await (await fetch(url('atlas.json'))).json();
+  } catch {
+    manifest = null;
+  }
   await Promise.all([
     ...ALL.map(async (t) => {
       raw[t] = {};
@@ -97,7 +106,9 @@ export function zombiesLoaded(): boolean {
   return ALL.some((t) => raw[t]?.Run);
 }
 
-function sliceDir(tex: Texture, fps: number, loop: boolean): DirAnim {
+function sliceZ(type: string, animKey: string, fps: number): DirAnimZ | null {
+  const tex = raw[type]?.[animKey];
+  if (!tex) return null;
   tex.source.scaleMode = 'linear';
   const cw = tex.width / COLS;
   const ch = tex.height / ROWS;
@@ -109,30 +120,21 @@ function sliceDir(tex: Texture, fps: number, loop: boolean): DirAnim {
     }
     frames.push(row);
   }
-  return { frames, count: COLS, fps, loop };
-}
-
-function sliceStrip(tex: Texture): Texture[] {
-  tex.source.scaleMode = 'linear';
-  const cw = tex.width / COLS;
-  const out: Texture[] = [];
-  for (let c = 0; c < COLS; c++) {
-    out.push(new Texture({ source: tex.source, frame: new Rectangle(c * cw, 0, cw, tex.height) }));
-  }
-  return out;
+  const anchorY = manifest?.anchorY?.[type]?.[animKey] ?? 0.66;
+  return { frames, count: COLS, fps, anchorY };
 }
 
 export function buildZombies(): ZombieAssets | null {
   if (!zombiesLoaded()) return null;
   const types: ZombieSet = {};
   for (const t of ALL) {
-    const r = raw[t];
-    if (!r?.Run) continue;
+    const run = sliceZ(t, 'Run', 16);
+    if (!run) continue;
     types[t] = {
-      run: sliceDir(r.Run, 16, true),
-      die: r.Die ? sliceDir(r.Die, 18, false) : null,
-      attack: r.Attack1 ? sliceDir(r.Attack1, 18, true) : null,
-      cell: r.Run.width / COLS,
+      run,
+      walk: sliceZ(t, 'Walk', 11) ?? run,
+      attack: [sliceZ(t, 'Attack1', 18), sliceZ(t, 'Attack2', 18)].filter(Boolean) as DirAnimZ[],
+      die: [sliceZ(t, 'Die', 18), sliceZ(t, 'Die2', 18)].filter(Boolean) as DirAnimZ[],
     };
   }
   const acid: Texture[][] = [];
@@ -140,13 +142,17 @@ export function buildZombies(): ZombieAssets | null {
   for (const f of FX) {
     const tex = rawFx[f];
     if (!tex) continue;
-    (f.startsWith('Acid') ? acid : blood).push(sliceStrip(tex));
+    tex.source.scaleMode = 'linear';
+    const cw = tex.width / COLS;
+    const out: Texture[] = [];
+    for (let c = 0; c < COLS; c++) {
+      out.push(new Texture({ source: tex.source, frame: new Rectangle(c * cw, 0, cw, tex.height) }));
+    }
+    (f.startsWith('Acid') ? acid : blood).push(out);
   }
   return { types, acid, blood };
 }
 
-// Resolve the zombie type id for an enemy: signature type for named bosses, else a random
-// pick from the class pool.
 export function resolveZombieType(id: string, texKind: number): string {
   const sig = ZOMBIE_BY_ID[id];
   if (sig && raw[sig]?.Run) return sig;

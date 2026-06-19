@@ -7,23 +7,25 @@ plays the survivor's Die animation before the game-over card). The bike (RideRun
 short dash ability (tap the on-screen button or Space/Shift) with i-frames + cooldown.
 Sheets live in assets/sprites/survivor/.
 
-ENEMIES: HD "2D Zombie Pack 1" (same creator/format as the survivor). Character sheets are
-15-frame x 8-direction grids (cell = width/15); bundled at a uniform 64px cell (downscaled
-to 960x512) to keep GPU memory in budget (~216MB for all three anims). All 36 zombie types
-(cops, soldiers, males, females, radioactive, hulks, monsters, generals) are grouped into
-pools matching the four enemy classes (texKind 0=walkers, 1=fast, 2=brutes, 3=bosses); each
-spawn picks a random type, and named bosses get a signature type (ZOMBIE_BY_ID). Animations:
-  - Run     : 8-direction walk, facing the player.
-  - Attack1 : 8-direction melee, played when a zombie is within reach of the player.
-  - Die     : one-shot death; the sprite is handed off to it and fades out.
-Acid/Blood are 15-frame FX strips (zombies/_fx/): Blood splatters on every zombie death,
-Acid bursts on exploder deaths and where enemy (spitter) shots hit the player. Sheets in
-assets/sprites/zombies/<Type>/{Run,Die,Attack1}.png, sliced at runtime
-(src/game/zombieSprite.ts). Easy to extend -- drop sheets in and edit ZOMBIE_POOLS /
-ZOMBIE_BY_ID. All 36 types are wired; the source pack also ships extra animations per type
-(Walk/Attack2-5/Idle/Idle2/Die2/Taunt/WakeUp/CrouchRun) not loaded here -- loading every
-animation for every type would be ~1GB of GPU memory, so the gameplay-meaningful set
-(Run/Attack/Die) is used across all types.
+ENEMIES: HD "2D Zombie Pack 1" (same creator as the survivor), all 36 zombie types, each
+with SIX animations: Run, Walk, Attack1, Attack2, Die, Die2.
+
+  Memory trick (src/game/zombieSprite.ts + tools that produced assets/sprites/zombies/):
+  loading every animation as full 8-direction sheets would be ~1GB of GPU memory. Two
+  facts make it tractable: (1) top-down characters are horizontally symmetric, so only 5
+  directions are stored (E, SE, S, N, NE) and W/SW/NW are rendered as horizontal mirrors;
+  (2) each sheet is mostly empty padding (~5% filled for Run), so every sheet is cropped
+  to the figures' bounding box. A per-sheet feet-line (atlas.json) is baked so the crop is
+  invisible -- the sprite is scaled by the ORIGINAL cell and anchored by the baked Y, so
+  feet stay planted. Result: 6 animations x 36 types in ~120MB instead of ~1GB.
+
+  Behaviour: a random type per spawn from the class pool (texKind 0=walkers, 1=fast,
+  2=brutes, 3=bosses); named bosses get a signature type (ZOMBIE_BY_ID). Slow movers
+  shamble (Walk), faster ones Run; they swing a random Attack variant when in reach of the
+  player; on death the sprite is handed to a random Die variant that fades out. Acid/Blood
+  FX strips (zombies/_fx/): blood on death, acid on exploder deaths + where enemy (spitter)
+  shots hit you. More animations exist in the pack (Idle/Taunt/WakeUp/CrouchRun/Attack3-5/
+  Idle2) and can be added the same way.
 
 OTHER: projectiles, blades, gems and the flat mauve ground are procedurally generated
 (src/game/textures.ts). The procedural cartoon hero + pixel zombie remain as fallbacks if

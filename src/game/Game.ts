@@ -20,7 +20,7 @@ import {
 import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
 import { createTextures, type Textures } from './textures';
 import { dirRow, type SurvivorSprite, type DirAnim } from './survivorSprite';
-import { resolveZombieType, type ZombieAssets, type ZombieAnims } from './zombieSprite';
+import { resolveZombieType, dir5, ORIG_CELL, type ZombieAssets, type ZombieAnims, type DirAnimZ } from './zombieSprite';
 import { Particles } from './particles';
 import {
   WEAPONS,
@@ -181,8 +181,10 @@ export class Game {
   // HD zombie enemies: a shared type->anim set + the chosen type per live entity.
   private zombies: ZombieAssets | null = null;
   private enemyZ: (ZombieAnims | undefined)[] = [];
+  private enemyAtk: number[] = []; // chosen Attack variant per entity
+  private enemyDie: number[] = []; // chosen Die variant per entity
   // Sprites detached from dead zombies, playing their one-shot Die animation.
-  private zDeaths: { s: Sprite; za: ZombieAnims; row: number; t: number; dur: number }[] = [];
+  private zDeaths: { s: Sprite; die: DirAnimZ; row: number; flip: boolean; t: number; dur: number }[] = [];
   private enemyWalk: (Texture[] | undefined)[] = [];
   private animFx: { s: Sprite; frames: Texture[]; t: number; dur: number }[] = [];
   private fxPool: Sprite[] = [];
@@ -371,14 +373,18 @@ export class Game {
   private playZombieDeath(eid: number): boolean {
     const s = this.spr[eid];
     const za = this.enemyZ[eid];
-    if (!s || !za?.die || this.zDeaths.length >= 36) {
+    if (!s || !za?.die.length || this.zDeaths.length >= 36) {
       this.releaseSprite(eid);
       return false;
     }
-    const row = dirRow(Math.atan2(this.player.y - Position.y[eid], this.player.x - Position.x[eid]));
+    const die = za.die[this.enemyDie[eid] % za.die.length];
+    const m = dir5(dirRow(Math.atan2(this.player.y - Position.y[eid], this.player.x - Position.x[eid])));
+    const sc = (Enemy.radius[eid] * Z_DISPLAY_K) / ORIG_CELL;
     s.tint = 0xffffff;
     s.alpha = 1;
-    this.zDeaths.push({ s, za, row, t: 0, dur: za.die.count / za.die.fps });
+    s.scale.set(m.flip ? -sc : sc, sc);
+    s.anchor.set(0.5, die.anchorY);
+    this.zDeaths.push({ s, die, row: m.row, flip: m.flip, t: 0, dur: die.count / die.fps });
     this.spr[eid] = undefined;
     this.enemyZ[eid] = undefined;
     this.enemyWalk[eid] = undefined;
@@ -389,8 +395,7 @@ export class Game {
     for (let i = this.zDeaths.length - 1; i >= 0; i--) {
       const d = this.zDeaths[i];
       d.t += dt;
-      const die = d.za.die!;
-      d.s.texture = die.frames[d.row][Math.min(die.count - 1, Math.floor(d.t * die.fps))];
+      d.s.texture = d.die.frames[d.row][Math.min(d.die.count - 1, Math.floor(d.t * d.die.fps))];
       const left = d.dur - d.t;
       d.s.alpha = left < 0.3 ? Math.max(0, left / 0.3) : 1; // fade the corpse out at the end
       if (d.t >= d.dur) {
@@ -438,10 +443,12 @@ export class Game {
       const za = this.zombies.types[resolveZombieType(def.id, def.texKind)];
       if (za) {
         const s = this.acquireSprite(za.run.frames[2][0]); // row 2 = facing south
-        s.anchor.set(0.5, 0.62); // feet near the ground point
-        s.scale.set((def.radius * Z_DISPLAY_K) / za.cell);
+        s.anchor.set(0.5, za.run.anchorY);
+        s.scale.set((def.radius * Z_DISPLAY_K) / ORIG_CELL);
         this.spr[eid] = s;
         this.enemyZ[eid] = za;
+        this.enemyAtk[eid] = (Math.random() * 2) | 0;
+        this.enemyDie[eid] = (Math.random() * 2) | 0;
         this.enemyWalk[eid] = undefined;
         return eid;
       }
@@ -1333,6 +1340,8 @@ export class Game {
     this.animClock = 0;
     this.enemyWalk = [];
     this.enemyZ = [];
+    this.enemyAtk = [];
+    this.enemyDie = [];
     for (const d of this.zDeaths) {
       d.s.visible = false;
       d.s.alpha = 1;
@@ -1563,15 +1572,24 @@ export class Game {
       s.position.set(ex, ey);
       const za = this.enemyZ[e];
       if (za) {
-        // HD zombie: face the player by 8-direction row; swing the Attack cycle when in
-        // reach, else Run (offset per entity so the horde isn't in lockstep).
+        // HD zombie: 8-direction facing via 5 stored rows + horizontal mirror. Swing the
+        // Attack cycle when in reach, else shamble (Walk) or run by speed. Per-entity
+        // frame offset + attack variant keep the horde from marching in lockstep.
         s.tint = Enemy.flash[e] > 0 ? 0xff7777 : 0xffffff;
         const dx = p.x - ex;
         const dy = p.y - ey;
-        const row = dirRow(Math.atan2(dy, dx));
+        const m = dir5(dirRow(Math.atan2(dy, dx)));
         const reach = Enemy.radius[e] + p.radius + 8;
-        const anim = za.attack && dx * dx + dy * dy < reach * reach ? za.attack : za.run;
-        s.texture = anim.frames[row][Math.floor(this.time * anim.fps + e) % anim.count];
+        let anim: DirAnimZ;
+        if (za.attack.length && dx * dx + dy * dy < reach * reach) {
+          anim = za.attack[this.enemyAtk[e] % za.attack.length];
+        } else {
+          anim = Enemy.speed[e] < 78 ? za.walk : za.run;
+        }
+        s.texture = anim.frames[m.row][Math.floor(this.time * anim.fps + e) % anim.count];
+        const sc = (Enemy.radius[e] * Z_DISPLAY_K) / ORIG_CELL;
+        s.scale.set(m.flip ? -sc : sc, sc);
+        s.anchor.set(0.5, anim.anchorY);
         continue;
       }
       const k = Enemy.kind[e];

@@ -8,6 +8,9 @@ import {
   Graphics,
   TilingSprite,
   Texture,
+  Matrix,
+  Rectangle,
+  ColorMatrixFilter,
 } from 'pixi.js';
 import {
   createWorld,
@@ -103,6 +106,15 @@ const DEATH_DUR = 1.3;
 // Zombies hold position briefly on spawn while their WakeUp (emerge) animation plays.
 const WAKE_DUR = 0.42;
 
+// Isometric projection: the sim stays in flat world coords; only rendering projects to a
+// 2:1 dimetric view. world (wx,wy) -> screen (sx,sy): sx=(wx-wy)*K, sy=(wx+wy)*K/2.
+// Sprites stay upright (billboarded); depth is wx+wy. A world tile of ISO_TILE units maps
+// to a 128x64 screen diamond, so the street/building tiles tessellate.
+const ISO_K = 2 / 3;
+const ISO_TILE = 96;
+const ISO_DIAMOND_W = ISO_TILE * ISO_K * 2; // 128
+const ISO_DIAMOND_H = ISO_TILE * ISO_K; // 64
+
 export class Game {
   private world: IWorld = createWorld();
   private tex: Textures;
@@ -179,6 +191,13 @@ export class Game {
   private fireBarrels: { s: Sprite; t: number }[] = [];
   private vignette: Sprite | null = null;
   private muzzleSprite: Sprite | null = null;
+  private tracer: Graphics | null = null;
+  // Isometric ground tilemap: a pool of diamond tiles re-laid around the camera each frame.
+  private groundTileC = new Container();
+  private groundPool: Sprite[] = [];
+  private isoMap: Record<string, Texture> = {}; // named street tiles (asphalt/asphalt_yellow/sidewalk/...)
+  private groundAnchorY = 0.5; // top-face-center as a fraction of tile height
+  private diamondTex: Texture | null = null;
   private fxC = new Container();
   private animClock = 0;
   private animFrame = 0;
@@ -240,11 +259,34 @@ export class Game {
     // Environment: depth-sort the world by base-Y so the cast walks behind props/buildings.
     this.env = this.tex.env ?? null;
     this.worldC.sortableChildren = true;
-    this.worldC.addChildAt(this.decalC, 0); // flat blood/grime decals on the ground
+    // Isometric layers: ground tiles at the bottom, then flat decals (skewed onto the
+    // ground plane), then the depth-sorted upright cast, then FX on top.
+    this.diamondTex = this.makeDiamondTex();
+    this.isoMap = this.env?.isoground ?? {};
+    // real iso tiles are 128x81 with the top-face center at y=32 -> anchor 0.395; the
+    // procedural fallback diamond is 128x64 -> 0.5.
+    this.groundAnchorY = Object.keys(this.isoMap).length ? 0.395 : 0.5;
+    this.worldC.addChild(this.groundTileC);
+    this.groundTileC.zIndex = -2e6;
+    this.worldC.addChild(this.decalC);
     this.decalC.zIndex = -1e6;
+    // Project flat decals onto the iso ground plane (skew); their own positions stay in
+    // world coords and the matrix maps them to screen.
+    this.decalC.setFromMatrix(new Matrix(ISO_K, ISO_K * 0.5, -ISO_K, ISO_K * 0.5, 0, 0));
     this.decoC.zIndex = -9e5;
     this.fxC.zIndex = 1e6;
-    if (this.env) this.makeVignette();
+    if (this.env) {
+      this.makeVignette();
+      // filmic grade: desaturate + lift contrast so the gritty palette reads and blood pops.
+      // Applied to the screen-space stage (origin 0,0) with a screen-sized filterArea so it
+      // clips to the viewport rather than worldC's enormous camera-translated bounds.
+      const grade = new ColorMatrixFilter();
+      grade.saturate(-0.2, false);
+      grade.contrast(0.18, true);
+      grade.brightness(1.06, true);
+      this.app.stage.filters = [grade];
+      this.app.stage.filterArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
+    }
 
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
     this.zombies = this.tex.zombies ?? null;
@@ -264,6 +306,93 @@ export class Game {
     this.buildContext();
     this.reset();
     app.ticker.add(() => this.frame());
+  }
+
+  // ---- isometric projection -------------------------------------------------
+  private isoX(wx: number, wy: number): number {
+    return (wx - wy) * ISO_K;
+  }
+  private isoY(wx: number, wy: number): number {
+    return (wx + wy) * (ISO_K * 0.5);
+  }
+  // Position an upright (billboarded) sprite at world (wx,wy) with iso depth (wx+wy).
+  private place(s: Container, wx: number, wy: number): void {
+    s.position.set((wx - wy) * ISO_K, (wx + wy) * (ISO_K * 0.5));
+    s.zIndex = wx + wy;
+  }
+
+  private makeDiamondTex(): Texture {
+    // A single iso floor diamond (128x64) with a faint seam — the base street tile.
+    const w = ISO_DIAMOND_W;
+    const h = ISO_DIAMOND_H;
+    const g = new Graphics()
+      .poly([w / 2, 0, w, h / 2, w / 2, h, 0, h / 2])
+      .fill(0x3d4147)
+      .stroke({ width: 1, color: 0x34373d, alpha: 0.5 });
+    const t = this.app.renderer.generateTexture({ target: g, antialias: true, resolution: 2 });
+    g.destroy();
+    return t;
+  }
+
+  // Procedural city block: which surface a world cell is. Roads (3 wide) run on a grid with
+  // yellow centre lines; sidewalks border them; block interiors are concrete (where buildings
+  // sit). Deterministic in (col,row) so the city is consistent as the camera streams.
+  private cityCell(col: number, row: number): string {
+    const B = 13; // block period in tiles
+    const RW = 3; // road half-zone width
+    const cx = ((col % B) + B) % B;
+    const cy = ((row % B) + B) % B;
+    const onColRoad = cx < RW;
+    const onRowRoad = cy < RW;
+    if (onColRoad || onRowRoad) {
+      if ((onColRoad && cx === 1) || (onRowRoad && cy === 1)) return 'asphalt_yellow';
+      return 'asphalt';
+    }
+    if (cx === RW || cy === RW || cx === B - 1 || cy === B - 1) return 'sidewalk';
+    return 'concrete';
+  }
+
+  private tileTexFor(col: number, row: number): Texture {
+    const m = this.isoMap;
+    if (!Object.keys(m).length) return this.diamondTex!;
+    return m[this.cityCell(col, row)] ?? m.asphalt ?? this.diamondTex!;
+  }
+
+  // Re-lay the iso ground tiles covering the viewport, centered on the player's tile.
+  private renderGround(): void {
+    const p = this.player;
+    const pc = Math.round(p.x / ISO_TILE);
+    const pr = Math.round(p.y / ISO_TILE);
+    const camX = this.worldC.x;
+    const camY = this.worldC.y;
+    const W = this.app.screen.width;
+    const H = this.app.screen.height;
+    const NX = 16;
+    const NY = 24;
+    let i = 0;
+    for (let dr = -NY; dr <= NY; dr++) {
+      for (let dc = -NX; dc <= NX; dc++) {
+        const wx = (pc + dc) * ISO_TILE;
+        const wy = (pr + dr) * ISO_TILE;
+        const sx = (wx - wy) * ISO_K;
+        const sy = (wx + wy) * (ISO_K * 0.5);
+        if (camX + sx < -ISO_DIAMOND_W || camX + sx > W + ISO_DIAMOND_W) continue;
+        if (camY + sy < -ISO_DIAMOND_H || camY + sy > H + ISO_DIAMOND_H) continue;
+        let s = this.groundPool[i];
+        if (!s) {
+          s = new Sprite();
+          s.anchor.set(0.5, this.groundAnchorY);
+          s.scale.set(1.04); // slight overlap closes anti-aliased tile seams
+          this.groundTileC.addChild(s);
+          this.groundPool[i] = s;
+        }
+        s.texture = this.tileTexFor(pc + dc, pr + dr);
+        s.visible = true;
+        s.position.set(sx, sy);
+        i++;
+      }
+    }
+    for (let k = i; k < this.groundPool.length; k++) this.groundPool[k].visible = false;
   }
 
   private makeVignette(): void {
@@ -322,7 +451,7 @@ export class Game {
     this.fireBarrels = [];
 
     const env = this.env;
-    const R = 1900; // decorated half-extent around the spawn
+    const R = 3700; // decorated half-extent around the spawn (covers the city blocks)
     const clear = 190; // keep the spawn point itself walkable
 
     if (!env) {
@@ -344,11 +473,11 @@ export class Game {
       return;
     }
 
-    // --- flat ground decals (street-surface patches, grime, blood) on the floor ---
+    // --- flat ground decals: blood, grime and cracks strewn across the streets ---
     const decalSets: { tex: Texture[]; n: number; smin: number; smax: number; alpha: number }[] = [
-      { tex: env.ground.slice(5), n: 30, smin: 1.0, smax: 1.6, alpha: 0.42 }, // sidewalk / cobble / concrete patches
-      { tex: env.detail, n: 90, smin: 0.7, smax: 1.5, alpha: 0.78 }, // cracks / debris / oil / paint
-      { tex: env.decals, n: 85, smin: 0.8, smax: 1.9, alpha: 0.8 }, // dried blood
+      { tex: env.detail, n: 150, smin: 0.7, smax: 1.5, alpha: 0.78 }, // cracks / debris / oil / paint
+      { tex: env.decals, n: 170, smin: 0.8, smax: 2.0, alpha: 0.82 }, // dried blood
+      { tex: env.ground.slice(5), n: 40, smin: 1.0, smax: 1.6, alpha: 0.4 }, // surface patches
     ];
     for (const set of decalSets) {
       if (!set.tex.length) continue;
@@ -363,38 +492,68 @@ export class Game {
       }
     }
 
-    // --- upright iso props, depth-sorted with the cast by base-Y ---
-    const propSets: { tex: Texture[]; n: number; scale: number; jit: number }[] = [
-      { tex: env.buildings, n: 18, scale: 1.2, jit: 0.18 },
-      { tex: env.cars, n: 20, scale: 1.05, jit: 0.15 },
-      { tex: env.objects, n: 70, scale: 0.85, jit: 0.25 },
-      { tex: env.flora, n: 64, scale: 0.9, jit: 0.3 },
-      { tex: env.street, n: 38, scale: 0.95, jit: 0.2 },
-    ];
-    const addProp = (tex: Texture, sc: number): Sprite | null => {
-      const px = (Math.random() * 2 - 1) * R;
-      const py = (Math.random() * 2 - 1) * R;
-      if (px * px + py * py < clear * clear) return null;
+    // --- structured city: buildings fill the block interiors; roads stay clear so the
+    // horde funnels down the streets, vehicles sit on the asphalt, clutter on sidewalks. ---
+    const B = 13;
+    const TILE = ISO_TILE;
+    const NB = 3; // city blocks in each direction around spawn
+    const span = NB * B;
+    const addAt = (tex: Texture, wx: number, wy: number, anchorY: number, sc: number): Sprite | null => {
+      if (wx * wx + wy * wy < clear * clear) return null;
       const s = new Sprite(tex);
-      s.anchor.set(0.5, 0.92); // rest on its base so base-Y sorts correctly
-      s.position.set(px, py);
+      s.anchor.set(0.5, anchorY);
       s.scale.set(sc);
-      s.zIndex = py;
+      this.place(s, wx, wy);
       this.worldC.addChild(s);
       this.envProps.push(s);
       return s;
     };
-    for (const set of propSets) {
-      if (!set.tex.length) continue;
-      for (let i = 0; i < set.n; i++) {
-        addProp(set.tex[(Math.random() * set.tex.length) | 0], set.scale * (1 - set.jit + Math.random() * set.jit * 2));
+    const randCell = (): number => ((Math.random() * (2 * span)) | 0) - span;
+
+    if (env.buildings.length) {
+      const lo = 4;
+      const hi = B - 2; // interior cells 4..11 (roads occupy 0..2, sidewalk at 3)
+      for (let bc = -NB; bc <= NB; bc++) {
+        for (let br = -NB; br <= NB; br++) {
+          const nb = 3 + ((Math.random() * 3) | 0);
+          for (let k = 0; k < nb; k++) {
+            const cc = bc * B + lo + ((Math.random() * (hi - lo + 1)) | 0);
+            const rr = br * B + lo + ((Math.random() * (hi - lo + 1)) | 0);
+            addAt(env.buildings[(Math.random() * env.buildings.length) | 0], cc * TILE, rr * TILE, 0.84, 1.25 + Math.random() * 0.6);
+          }
+        }
       }
     }
-
-    // --- a few flaming barrels (animated atmosphere) ---
+    if (env.cars.length) {
+      for (let i = 0; i < 40; i++) {
+        const cc = randCell();
+        const rr = randCell();
+        if (this.cityCell(cc, rr) !== 'asphalt') continue;
+        addAt(env.cars[(Math.random() * env.cars.length) | 0], cc * TILE, rr * TILE, 0.86, 0.95 + Math.random() * 0.25);
+      }
+    }
+    const clutter = [...env.objects, ...env.street, ...env.flora];
+    if (clutter.length) {
+      for (let i = 0; i < 150; i++) {
+        const cc = randCell();
+        const rr = randCell();
+        const cell = this.cityCell(cc, rr);
+        if (cell === 'asphalt' || cell === 'asphalt_yellow') continue; // keep the road clear
+        addAt(
+          clutter[(Math.random() * clutter.length) | 0],
+          cc * TILE + (Math.random() * 50 - 25),
+          rr * TILE + (Math.random() * 50 - 25),
+          0.9,
+          0.55 + Math.random() * 0.4,
+        );
+      }
+    }
     if (env.firebarrel.length) {
-      for (let i = 0; i < 7; i++) {
-        const s = addProp(env.firebarrel[0], 0.95);
+      for (let i = 0; i < 10; i++) {
+        const cc = randCell();
+        const rr = randCell();
+        if (this.cityCell(cc, rr) !== 'sidewalk') continue;
+        const s = addAt(env.firebarrel[0], cc * TILE, rr * TILE, 0.9, 0.9);
         if (s) this.fireBarrels.push({ s, t: Math.random() * 10 });
       }
     }
@@ -407,6 +566,8 @@ export class Game {
       this.vignette.width = this.app.screen.width;
       this.vignette.height = this.app.screen.height;
     }
+    if (this.app.stage.filterArea)
+      this.app.stage.filterArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
   }
 
   private addShake(n: number): void {
@@ -827,7 +988,7 @@ export class Game {
     t.style.fill = crit ? 0xffe066 : 0xffffff;
     t.style.fontWeight = crit ? 'bold' : 'normal';
     t.style.stroke = { color: 0x000000, width: 3 };
-    t.position.set(x, y);
+    t.position.set(this.isoX(x, y), this.isoY(x, y));
     t.visible = true;
     t.alpha = 1;
     this.dmgNums.push({ t, vy: -46, life: 0.6, max: 0.6 });
@@ -835,14 +996,15 @@ export class Game {
 
   private spawnZap(x1: number, y1: number, x2: number, y2: number, color = 0x9be7ff): void {
     const g = new Graphics();
-    g.moveTo(x1, y1).lineTo(x2, y2).stroke({ width: 3, color, alpha: 0.9 });
+    g.moveTo(this.isoX(x1, y1), this.isoY(x1, y1)).lineTo(this.isoX(x2, y2), this.isoY(x2, y2)).stroke({ width: 3, color, alpha: 0.9 });
     this.worldC.addChild(g);
     this.fx.push({ g, life: 0.12 });
   }
 
   private spawnNovaRing(x: number, y: number, r: number, color: number): void {
     const g = new Graphics().circle(0, 0, r).stroke({ width: 4, color, alpha: 0.7 });
-    g.position.set(x, y);
+    g.position.set(this.isoX(x, y), this.isoY(x, y));
+    g.scale.set(1, 0.5); // flat on the iso ground plane
     this.worldC.addChild(g);
     this.fx.push({ g, life: 0.18 });
   }
@@ -883,10 +1045,10 @@ export class Game {
 
   private spawnDirector(dt: number): void {
     if (this.bossSpawned) return;
-    const rate = this.stage.spawnBase + this.time * this.stage.spawnRamp;
+    const rate = (this.stage.spawnBase + this.time * this.stage.spawnRamp) * 1.8;
     this.spawnAcc += dt * rate;
     let count = enemyQuery(this.world).length;
-    const cap = 700;
+    const cap = 900;
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
       if (count >= cap) continue;
@@ -1272,7 +1434,7 @@ export class Game {
       s.anchor.set(0.5);
     }
     s.texture = frames[0];
-    s.position.set(x, y);
+    s.position.set(this.isoX(x, y), this.isoY(x, y));
     s.scale.set(scale);
     s.alpha = 1;
     s.rotation = Math.random() * Math.PI * 2;
@@ -1552,7 +1714,7 @@ export class Game {
     // Real pixel-art player shows untinted; a per-character colour multiply would
     // discolour the sprite. (Procedural mode still tints to tell characters apart.)
     this.playerSprite.tint = this.artUpright ? 0xffffff : (this.character.tint ?? 0xffffff);
-    this.bg.tint = this.env ? 0xffffff : (this.stage.tint ?? 0xffffff);
+    this.bg.tint = this.env ? 0x16181c : (this.stage.tint ?? 0xffffff); // dark void behind the iso ground
     if (this.pet) {
       this.petSprite.visible = true;
       this.petSprite.tint = this.pet.color;
@@ -1700,12 +1862,11 @@ export class Game {
     const sh = settings.reduceMotion ? 0 : this.shakeMag;
     const ox = sh ? (Math.random() * 2 - 1) * sh : 0;
     const oy = sh ? (Math.random() * 2 - 1) * sh : 0;
-    this.worldC.x = this.app.screen.width / 2 - p.x + ox;
-    this.worldC.y = this.app.screen.height / 2 - p.y + oy;
-    this.bg.tilePosition.set(-p.x + ox, -p.y + oy);
+    this.worldC.x = this.app.screen.width / 2 - this.isoX(p.x, p.y) + ox;
+    this.worldC.y = this.app.screen.height / 2 - this.isoY(p.x, p.y) + oy;
+    this.renderGround();
 
-    this.playerSprite.position.set(p.x, p.y);
-    this.playerSprite.zIndex = p.y;
+    this.place(this.playerSprite, p.x, p.y);
     if (this.survivor) {
       this.updateSurvivorSprite();
     } else {
@@ -1728,34 +1889,52 @@ export class Game {
     }
     this.syncDashButton();
 
-    // muzzle flash at the gun muzzle while firing at a nearby target
+    // muzzle flash + bright tracer beam at the gun while firing at a nearby target
     const mz = this.env?.muzzle;
     if (mz?.length && this.survivor) {
       if (!this.muzzleSprite) {
         this.muzzleSprite = new Sprite(mz[0]);
         this.muzzleSprite.anchor.set(0.5, 0.95);
-        this.muzzleSprite.zIndex = 1e6 + 1;
+        this.muzzleSprite.zIndex = 1e6 + 2;
         this.fxC.addChild(this.muzzleSprite);
       }
-      const firing = !this.dying && this.nearestEnemy(p.x, p.y, 820) >= 0;
+      if (!this.tracer) {
+        this.tracer = new Graphics();
+        this.tracer.zIndex = 1e6 + 1;
+        this.fxC.addChild(this.tracer);
+      }
+      const tgt = this.dying ? -1 : this.nearestEnemy(p.x, p.y, 820);
+      const firing = tgt >= 0;
       this.muzzleSprite.visible = firing;
+      this.tracer.visible = firing;
       if (firing) {
-        this.muzzleSprite.position.set(p.x + Math.cos(this.survFacing) * 26, p.y + Math.sin(this.survFacing) * 26 - 6);
+        const gx = p.x + Math.cos(this.survFacing) * 26;
+        const gy = p.y + Math.sin(this.survFacing) * 26;
+        const gsx = this.isoX(gx, gy);
+        const gsy = this.isoY(gx, gy) - 12;
+        this.muzzleSprite.position.set(gsx, gsy - 2);
         this.muzzleSprite.rotation = this.survFacing + Math.PI / 2;
         this.muzzleSprite.texture = mz[Math.floor(this.time * 26) % mz.length];
         this.muzzleSprite.scale.set(1.1);
+        const tx = this.isoX(Position.x[tgt], Position.y[tgt]);
+        const ty = this.isoY(Position.x[tgt], Position.y[tgt]) - 18;
+        this.tracer.clear();
+        this.tracer
+          .moveTo(gsx, gsy)
+          .lineTo(tx, ty)
+          .stroke({ width: 2.2, color: 0xffd060, alpha: 0.35 + Math.random() * 0.4 });
+        this.tracer.moveTo(gsx, gsy).lineTo(tx, ty).stroke({ width: 0.8, color: 0xffffff, alpha: 0.85 });
       }
     }
 
-    if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
+    if (this.pet) this.place(this.petSprite, this.petPos.x, this.petPos.y);
 
     for (const e of enemyQuery(this.world)) {
       const s = this.spr[e];
       if (!s) continue;
       const ex = Position.x[e];
       const ey = Position.y[e];
-      s.position.set(ex, ey);
-      s.zIndex = ey;
+      this.place(s, ex, ey);
       const za = this.enemyZ[e];
       if (za) {
         // HD zombie: 8-direction facing via 5 stored rows + horizontal mirror. Swing the
@@ -1811,16 +1990,13 @@ export class Game {
     for (const e of projQuery(this.world)) {
       const s = this.spr[e];
       if (s) {
-        s.position.set(Position.x[e], Position.y[e]);
-        s.zIndex = Position.y[e] + 40; // bullets fly above the cast
+        this.place(s, Position.x[e], Position.y[e]);
+        s.zIndex += 40; // bullets fly above the cast
       }
     }
     for (const e of gemQuery(this.world)) {
       const s = this.spr[e];
-      if (s) {
-        s.position.set(Position.x[e], Position.y[e]);
-        s.zIndex = Position.y[e];
-      }
+      if (s) this.place(s, Position.x[e], Position.y[e]);
     }
     // animate scattered flaming barrels
     if (this.env?.firebarrel.length && this.fireBarrels.length) {
@@ -1840,18 +2016,19 @@ export class Game {
       for (let i = 0; i < n; i++) {
         const a = w.angle + (i / n) * Math.PI * 2;
         const b = w.blades[i];
-        b.position.set(p.x + Math.cos(a) * s.range, p.y + Math.sin(a) * s.range);
+        this.place(b, p.x + Math.cos(a) * s.range, p.y + Math.sin(a) * s.range);
         b.scale.set(scale);
       }
     }
 
-    // telegraphs (expanding danger ring)
+    // telegraphs (expanding danger ring) — drawn flat on the iso ground (squashed to 2:1)
     for (const tg of this.tele) {
       const prog = tg.t / tg.delay;
       tg.g.clear();
       tg.g.circle(0, 0, tg.r).fill({ color: 0xff3344, alpha: 0.1 + 0.25 * prog });
       tg.g.circle(0, 0, tg.r).stroke({ width: 3, color: 0xff5566, alpha: 0.85 });
-      tg.g.position.set(tg.x, tg.y);
+      tg.g.position.set(this.isoX(tg.x, tg.y), this.isoY(tg.x, tg.y));
+      tg.g.scale.set(1, 0.5);
     }
 
     const boss =

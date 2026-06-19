@@ -17,6 +17,8 @@ export interface EnvAssets {
   bloodfx: Texture[][]; // per-effect animated blood-burst frame lists
   muzzle: Texture[]; // muzzle-flash flipbook
   firebarrel: Texture[]; // flaming-barrel loop
+  isoground: Record<string, Texture>; // named iso street tiles (asphalt/asphalt_yellow/sidewalk/...)
+  isoMeta: { diamondW: number; diamondH: number; apexX: number; apexY: number } | null;
 }
 
 const TILE_CATS = ['ground', 'buildings', 'decals', 'detail', 'cars', 'objects', 'flora', 'street'] as const;
@@ -24,6 +26,8 @@ const raw: Record<string, Texture[]> = {};
 const bloodfx: Texture[][] = [];
 let muzzle: Texture[] = [];
 let firebarrel: Texture[] = [];
+const isoground: Record<string, Texture> = {};
+let isoMeta: EnvAssets['isoMeta'] = null;
 
 function url(p: string): string {
   const base = typeof document !== 'undefined' ? document.baseURI : '/';
@@ -74,6 +78,25 @@ export async function preloadEnv(): Promise<void> {
       const man = (await manifest('firebarrel')) as { frames?: string[] } | null;
       if (man?.frames) firebarrel = await loadList(man.frames.map((f) => `firebarrel/${f}`));
     })(),
+    (async () => {
+      const man = (await manifest('isoground')) as
+        | { diamondW: number; diamondH: number; apexX: number; apexY: number; tiles?: { file: string; name?: string }[] }
+        | null;
+      if (man?.tiles) {
+        isoMeta = { diamondW: man.diamondW, diamondH: man.diamondH, apexX: man.apexX, apexY: man.apexY };
+        await Promise.all(
+          man.tiles.map(async (t) => {
+            try {
+              const tex = (await Assets.load(url(`isoground/${t.file}`))) as Texture;
+              tex.source.scaleMode = 'nearest'; // crisp pixel-art street tiles, no seam bleed
+              isoground[t.name ?? t.file.replace('.png', '')] = tex;
+            } catch {
+              /* skip */
+            }
+          }),
+        );
+      }
+    })(),
   ]);
 }
 
@@ -95,5 +118,7 @@ export function buildEnv(): EnvAssets | null {
     bloodfx,
     muzzle,
     firebarrel,
+    isoground,
+    isoMeta,
   };
 }

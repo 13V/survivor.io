@@ -6,6 +6,7 @@ import {
   CHARACTERS,
   STAGES,
   GEAR,
+  PETS,
   baseMods,
   type Mods,
 } from '../src/game/data';
@@ -170,6 +171,20 @@ describe('GEAR', () => {
     for (const g of all) {
       expect(GEAR_SLOTS).toContain(g.slot);
       expect(Object.keys(g.mods).length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe('PETS', () => {
+  it('each pet has positive attack stats', () => {
+    const all = Object.values(PETS);
+    expect(all.length).toBeGreaterThan(0);
+    for (const p of all) {
+      expect(p.cooldown).toBeGreaterThan(0);
+      expect(p.dmg).toBeGreaterThan(0);
+      expect(p.range).toBeGreaterThan(0);
+      expect(p.count).toBeGreaterThan(0);
+      expect(p.speed).toBeGreaterThan(0);
     }
   });
 });

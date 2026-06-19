@@ -18,7 +18,8 @@ npm run dev       # open the printed localhost URL
 - **Core (M1):** fixed-timestep ECS loop, uniform-grid spatial-hash collision, sprite/object pooling, a data-driven spawn director, the 1-of-3 level-up draft, floating damage numbers, hit-flash + knockback juice, an enemy roster, and a telegraphed boss with a board-wipe.
 - **Systems:** procedural Web-Audio SFX + music, title screen, settings/pause, minimap with off-screen boss arrow, `localStorage` save (best time/kills/coins), PWA (installable/offline), and a Vitest suite + CI.
 - **Content (M2):** a data-driven **content registry** (`src/game/content/**`, auto-loaded via Vite glob) with **~25 weapons across 6 behaviors** (projectile / burst / orbit / zap / nova / beam), **~20 evolutions** (maxed weapon + catalyst → evolved form), **8 passives**, and a **~20-enemy + 5-boss** roster (weighted/time-gated spawns, per-boss telegraph attacks). Adding a weapon/enemy = dropping in one file.
-- **Characters (M3, in progress):** **14 selectable survivors** (registry-driven: tint + starting weapon + stat deltas + optional exclusive skill), chosen on the title screen.
+- **Characters & meta (M3):** **14 survivors**, **5 stages/modes** (Wild Streets / Subway / Endless / Boss Rush / Nightmare), a **6-slot equipment loadout** (24 gear pieces, persisted to the save profile), and **pet companions** that follow you and auto-fire — all chosen on the title screen and applied per run.
+- **Game-feel:** screen shake, hitstop, evolution & level-up flashes, and telegraph rings (all respecting a reduce-motion setting).
 
 ---
 

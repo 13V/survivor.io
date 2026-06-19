@@ -33,6 +33,7 @@ import {
   type WeaponRuntime,
   type CharacterDef,
   type StageDef,
+  type PetDef,
 } from './data';
 import { behaviors } from './behaviors';
 import { Input } from '../core/input';
@@ -134,6 +135,10 @@ export class Game {
   private shakeMag = 0;
   private hitstop = 0;
   private flashEl!: HTMLDivElement;
+  private petSprite!: Sprite;
+  private petPos = { x: 0, y: 0 };
+  private petAngle = 0;
+  private petTimer = 0;
 
   constructor(
     private app: Application,
@@ -141,6 +146,7 @@ export class Game {
     private minimap: Minimap,
     private character: CharacterDef,
     private stage: StageDef,
+    private pet: PetDef | null,
   ) {
     this.tex = createTextures(app.renderer);
     this.bg = new TilingSprite({
@@ -154,6 +160,11 @@ export class Game {
     this.playerSprite = new Sprite(this.tex.player);
     this.playerSprite.anchor.set(0.5);
     this.worldC.addChild(this.playerSprite);
+
+    this.petSprite = new Sprite(this.tex.blade);
+    this.petSprite.anchor.set(0.5);
+    this.petSprite.visible = false;
+    this.worldC.addChild(this.petSprite);
 
     window.addEventListener('resize', () => this.onResize());
 
@@ -403,6 +414,46 @@ export class Game {
     if (Enemy.hp[eid] <= 0) {
       this.dead.add(eid);
       this.killList.push(eid);
+    }
+  }
+
+  private updatePet(dt: number): void {
+    if (!this.pet) return;
+    const p = this.player;
+    this.petAngle += 0.9 * dt;
+    const tx = p.x + Math.cos(this.petAngle) * 64;
+    const ty = p.y + Math.sin(this.petAngle) * 64;
+    const k = Math.min(1, 7 * dt);
+    this.petPos.x += (tx - this.petPos.x) * k;
+    this.petPos.y += (ty - this.petPos.y) * k;
+
+    this.petTimer -= dt;
+    if (this.petTimer > 0) return;
+    this.petTimer += Math.max(this.pet.cooldown * this.mods.cdMul, 0.1);
+    const t = this.nearestEnemy(this.petPos.x, this.petPos.y, this.pet.range);
+    let dx = this.input.facing.x;
+    let dy = this.input.facing.y;
+    if (t >= 0) {
+      dx = Position.x[t] - this.petPos.x;
+      dy = Position.y[t] - this.petPos.y;
+      const d = Math.hypot(dx, dy) || 1;
+      dx /= d;
+      dy /= d;
+    }
+    const a0 = Math.atan2(dy, dx);
+    for (let i = 0; i < this.pet.count; i++) {
+      const a = a0 + (i - (this.pet.count - 1) / 2) * 0.18;
+      this.spawnProjectile(
+        this.petPos.x,
+        this.petPos.y,
+        Math.cos(a) * this.pet.speed,
+        Math.sin(a) * this.pet.speed,
+        this.pet.dmg * this.mods.dmgMul,
+        0,
+        this.critRoll(),
+        6,
+        this.pet.color,
+      );
     }
   }
 
@@ -930,6 +981,16 @@ export class Game {
       this.addWeapon(this.character.exclusiveSkill);
     this.playerSprite.tint = this.character.tint ?? 0xffffff;
     this.bg.tint = this.stage.tint ?? 0xffffff;
+    if (this.pet) {
+      this.petSprite.visible = true;
+      this.petSprite.tint = this.pet.color;
+      this.petSprite.scale.set(1.5);
+      this.petPos.x = this.player.x + 64;
+      this.petPos.y = this.player.y;
+      this.petTimer = 0;
+    } else {
+      this.petSprite.visible = false;
+    }
     this.recompute();
     this.hud.hideEnd();
     this.hud.hideLevelUp();
@@ -953,6 +1014,7 @@ export class Game {
     for (const e of enemyQuery(this.world)) this.hash.insert(e, Position.x[e], Position.y[e]);
 
     this.fireWeapons(dt);
+    this.updatePet(dt);
     this.collideProjectiles();
     this.playerContact();
     this.collectGems();
@@ -977,6 +1039,7 @@ export class Game {
 
     this.playerSprite.position.set(p.x, p.y);
     this.playerSprite.alpha = p.invuln > 0 ? 0.55 : 1;
+    if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
 
     for (const e of enemyQuery(this.world)) {
       const s = this.spr[e];

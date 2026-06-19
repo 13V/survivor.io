@@ -9,6 +9,7 @@ import type {
   CharacterDef,
   StageDef,
   GearDef,
+  PetDef,
 } from './types';
 
 export const WEAPONS: Record<string, WeaponDef> = {};
@@ -18,6 +19,7 @@ export const ENEMY_DEFS: EnemyDef[] = [];
 export const CHARACTERS: Record<string, CharacterDef> = {};
 export const STAGES: StageDef[] = [];
 export const GEAR: Record<string, GearDef> = {};
+export const PETS: Record<string, PetDef> = {};
 
 export function registerWeapon(d: WeaponDef): void {
   WEAPONS[d.id] = d;
@@ -39,4 +41,7 @@ export function registerStage(d: StageDef): void {
 }
 export function registerGear(d: GearDef): void {
   GEAR[d.id] = d;
+}
+export function registerPet(d: PetDef): void {
+  PETS[d.id] = d;
 }

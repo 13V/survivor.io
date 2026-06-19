@@ -163,3 +163,17 @@ export interface GearDef {
   desc?: string;
   mods: Partial<Record<keyof Mods, number>>;
 }
+
+// A pet companion that follows the player and auto-fires bolts at the nearest enemy.
+export interface PetDef {
+  id: string;
+  name: string;
+  icon: string;
+  desc: string;
+  color: number;
+  cooldown: number;
+  dmg: number;
+  range: number;
+  count: number;
+  speed: number;
+}

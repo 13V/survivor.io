@@ -6,7 +6,16 @@ import './loadContent';
 import type { Mods } from './types';
 
 export * from './types';
-export { WEAPONS, PASSIVES, EVOLUTIONS, ENEMY_DEFS, CHARACTERS, STAGES, GEAR } from './registry';
+export {
+  WEAPONS,
+  PASSIVES,
+  EVOLUTIONS,
+  ENEMY_DEFS,
+  CHARACTERS,
+  STAGES,
+  GEAR,
+  PETS,
+} from './registry';
 
 export const MAX_WEAPONS = 6;
 export const MAX_PASSIVES = 6;

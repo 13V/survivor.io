@@ -100,3 +100,25 @@ export interface BehaviorHandler {
   fire?: (ctx: WeaponContext, inst: WeaponRuntime, s: WeaponStats) => void;
   update?: (ctx: WeaponContext, inst: WeaponRuntime, s: WeaponStats, dt: number) => void;
 }
+
+export interface EnemyAttack {
+  interval: number; // seconds between boss telegraphed attacks
+  radius: number; // telegraph/AoE radius
+}
+
+// Enemies are pure data (stats + which base sprite to reuse + a tint), so the
+// roster can grow without touching textures.ts or the engine.
+export interface EnemyDef {
+  id: string;
+  name: string;
+  speed: number;
+  hp: number;
+  dmg: number;
+  radius: number;
+  xp: number;
+  texKind: number; // base sprite to reuse: 0 zombie, 1 runner, 2 brute, 3 boss
+  tint?: number; // recolor the base sprite (0xRRGGBB)
+  boss?: boolean;
+  spawn?: { minTime?: number; weight?: number }; // director gating (non-boss)
+  bossAttack?: EnemyAttack;
+}

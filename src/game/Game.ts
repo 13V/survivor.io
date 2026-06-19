@@ -23,8 +23,7 @@ import {
   WEAPONS,
   PASSIVES,
   EVOLUTIONS,
-  ENEMIES,
-  BOSS,
+  ENEMY_DEFS,
   baseMods,
   MAX_WEAPONS,
   MAX_PASSIVES,
@@ -74,6 +73,9 @@ type State = 'play' | 'paused' | 'over';
 const enemyQuery = defineQuery([Enemy, Position]);
 const projQuery = defineQuery([Projectile, Position, Velocity]);
 const gemQuery = defineQuery([Gem, Position]);
+
+// Base sprite radius per texKind (0 zombie, 1 runner, 2 brute, 3 boss).
+const ENEMY_BASE_R = [16, 13, 24, 58];
 
 export class Game {
   private world: IWorld = createWorld();
@@ -247,8 +249,8 @@ export class Game {
   }
 
   // ---- entity factories -----------------------------------------------------
-  private spawnEnemy(kind: number, x: number, y: number, boss = false): number {
-    const def = boss ? BOSS : ENEMIES[kind];
+  private spawnEnemy(kind: number, x: number, y: number): number {
+    const def = ENEMY_DEFS[kind];
     const dmul = C.difficultyMul(this.time);
     const eid = addEntity(this.world);
     addComponent(this.world, Position, eid);
@@ -264,10 +266,12 @@ export class Game {
     Enemy.kind[eid] = kind;
     Enemy.xp[eid] = def.xp;
     Enemy.flash[eid] = 0;
-    Enemy.boss[eid] = boss ? 1 : 0;
-    Enemy.atkCd[eid] = 2.5;
+    Enemy.boss[eid] = def.boss ? 1 : 0;
+    Enemy.atkCd[eid] = def.bossAttack?.interval ?? 2.5;
     Enemy.knock[eid] = 0;
-    const s = this.acquireSprite(boss ? this.tex.boss : this.tex.enemy[kind]);
+    const tex = def.texKind === 3 ? this.tex.boss : this.tex.enemy[def.texKind];
+    const s = this.acquireSprite(tex);
+    s.scale.set(def.radius / ENEMY_BASE_R[def.texKind]);
     this.spr[eid] = s;
     return eid;
   }
@@ -450,12 +454,26 @@ export class Game {
   }
 
   private spawnOne(): void {
-    let kind = 0;
     const t = this.time;
-    const r = Math.random();
-    if (t < 18) kind = 0;
-    else if (t < 45) kind = r < 0.7 ? 0 : 1;
-    else kind = r < 0.55 ? 0 : r < 0.85 ? 1 : 2;
+    let total = 0;
+    for (let i = 0; i < ENEMY_DEFS.length; i++) {
+      const d = ENEMY_DEFS[i];
+      if (d.boss || (d.spawn?.minTime ?? 0) > t) continue;
+      total += d.spawn?.weight ?? 1;
+    }
+    let kind = 0;
+    if (total > 0) {
+      let roll = Math.random() * total;
+      for (let i = 0; i < ENEMY_DEFS.length; i++) {
+        const d = ENEMY_DEFS[i];
+        if (d.boss || (d.spawn?.minTime ?? 0) > t) continue;
+        roll -= d.spawn?.weight ?? 1;
+        if (roll <= 0) {
+          kind = i;
+          break;
+        }
+      }
+    }
     const ang = rand(0, Math.PI * 2);
     const R = Math.max(this.app.screen.width, this.app.screen.height) / 2 + 90;
     this.spawnEnemy(kind, this.player.x + Math.cos(ang) * R, this.player.y + Math.sin(ang) * R);
@@ -469,7 +487,10 @@ export class Game {
       this.releaseSprite(e);
       removeEntity(this.world, e);
     }
-    this.bossEid = this.spawnEnemy(0, this.player.x, this.player.y - 360, true);
+    const bossKinds: number[] = [];
+    for (let i = 0; i < ENEMY_DEFS.length; i++) if (ENEMY_DEFS[i].boss) bossKinds.push(i);
+    const bk = bossKinds.length ? pick(bossKinds) : 0;
+    this.bossEid = this.spawnEnemy(bk, this.player.x, this.player.y - 360);
     audio.bossSpawn();
     audio.setBossMode(true);
   }
@@ -491,8 +512,9 @@ export class Game {
       if (Enemy.boss[e]) {
         Enemy.atkCd[e] -= dt;
         if (Enemy.atkCd[e] <= 0) {
-          Enemy.atkCd[e] = 2.6;
-          this.spawnTelegraph(p.x, p.y, 135, 0.9, Enemy.dmg[e]);
+          const atk = ENEMY_DEFS[Enemy.kind[e]].bossAttack;
+          Enemy.atkCd[e] = atk?.interval ?? 2.6;
+          this.spawnTelegraph(p.x, p.y, atk?.radius ?? 135, 0.9, Enemy.dmg[e]);
         }
       }
     }
@@ -906,7 +928,7 @@ export class Game {
       const s = this.spr[e];
       if (!s) continue;
       s.position.set(Position.x[e], Position.y[e]);
-      s.tint = Enemy.flash[e] > 0 ? 0xff7777 : 0xffffff;
+      s.tint = Enemy.flash[e] > 0 ? 0xff7777 : (ENEMY_DEFS[Enemy.kind[e]].tint ?? 0xffffff);
     }
     for (const e of projQuery(this.world)) {
       const s = this.spr[e];

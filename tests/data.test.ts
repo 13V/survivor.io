@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   WEAPONS,
   PASSIVES,
-  ENEMIES,
-  BOSS,
+  ENEMY_DEFS,
   baseMods,
   type Mods,
 } from '../src/game/data';
@@ -113,25 +112,27 @@ describe('PASSIVES apply()', () => {
   }
 });
 
-describe('ENEMIES and BOSS', () => {
-  it('every enemy type has positive hp and dmg', () => {
-    expect(ENEMIES.length).toBeGreaterThan(0);
-    for (const e of ENEMIES) {
+describe('ENEMY_DEFS registry', () => {
+  it('every enemy has positive stats and a valid texKind', () => {
+    expect(ENEMY_DEFS.length).toBeGreaterThan(0);
+    for (const e of ENEMY_DEFS) {
       expect(e.hp).toBeGreaterThan(0);
       expect(e.dmg).toBeGreaterThan(0);
       expect(e.speed).toBeGreaterThan(0);
       expect(e.radius).toBeGreaterThan(0);
+      expect(e.xp).toBeGreaterThanOrEqual(0);
+      expect(e.texKind).toBeGreaterThanOrEqual(0);
+      expect(e.texKind).toBeLessThanOrEqual(3);
     }
   });
 
-  it('boss has positive hp and dmg', () => {
-    expect(BOSS.hp).toBeGreaterThan(0);
-    expect(BOSS.dmg).toBeGreaterThan(0);
-  });
-
-  it('boss is tankier than any regular enemy', () => {
-    const maxEnemyHp = Math.max(...ENEMIES.map((e) => e.hp));
-    expect(BOSS.hp).toBeGreaterThan(maxEnemyHp);
+  it('has at least one boss, tankier than any non-boss enemy', () => {
+    const bosses = ENEMY_DEFS.filter((e) => e.boss);
+    const mobs = ENEMY_DEFS.filter((e) => !e.boss);
+    expect(bosses.length).toBeGreaterThan(0);
+    expect(mobs.length).toBeGreaterThan(0);
+    const maxMobHp = Math.max(...mobs.map((e) => e.hp));
+    for (const b of bosses) expect(b.hp).toBeGreaterThan(maxMobHp);
   });
 });
 

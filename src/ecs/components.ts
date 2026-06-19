@@ -26,6 +26,7 @@ export const Projectile = defineComponent({
   radius: Types.f32,
   pierce: Types.i16,
   crit: Types.ui8,
+  enemy: Types.ui8, // 1 = enemy-owned hazard (damages the player), 0 = player projectile
 });
 
 export const Gem = defineComponent({

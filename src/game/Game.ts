@@ -34,6 +34,7 @@ import {
   type CharacterDef,
   type StageDef,
   type PetDef,
+  type EnemyDef,
 } from './data';
 import { behaviors } from './behaviors';
 import { Input } from '../core/input';
@@ -304,7 +305,13 @@ export class Game {
     Enemy.xp[eid] = def.xp;
     Enemy.flash[eid] = 0;
     Enemy.boss[eid] = def.boss ? 1 : 0;
-    Enemy.atkCd[eid] = def.bossAttack?.interval ?? 2.5;
+    Enemy.atkCd[eid] = def.boss
+      ? (def.bossAttack?.interval ?? 2.6)
+      : def.ai === 'shooter'
+        ? (def.shootCd ?? 2.2)
+        : def.ai === 'charger'
+          ? (def.chargeCd ?? 3)
+          : 99999;
     Enemy.knock[eid] = 0;
     const tex = def.texKind === 3 ? this.tex.boss : this.tex.enemy[def.texKind];
     const s = this.acquireSprite(tex);
@@ -337,6 +344,38 @@ export class Game {
     Projectile.radius[eid] = radius;
     Projectile.pierce[eid] = pierce;
     Projectile.crit[eid] = crit ? 1 : 0;
+    Projectile.enemy[eid] = 0;
+    const s = this.acquireSprite(this.tex.projectile);
+    s.rotation = Math.atan2(vy, vx);
+    s.tint = color;
+    s.scale.set(radius / 7);
+    this.spr[eid] = s;
+  }
+
+  // Enemy-owned hazard projectile that damages the player.
+  private spawnHazard(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    dmg: number,
+    radius: number,
+    color: number,
+  ): void {
+    const eid = addEntity(this.world);
+    addComponent(this.world, Position, eid);
+    addComponent(this.world, Velocity, eid);
+    addComponent(this.world, Projectile, eid);
+    Position.x[eid] = x;
+    Position.y[eid] = y;
+    Velocity.x[eid] = vx;
+    Velocity.y[eid] = vy;
+    Projectile.dmg[eid] = dmg;
+    Projectile.life[eid] = 3;
+    Projectile.radius[eid] = radius;
+    Projectile.pierce[eid] = 0;
+    Projectile.crit[eid] = 0;
+    Projectile.enemy[eid] = 1;
     const s = this.acquireSprite(this.tex.projectile);
     s.rotation = Math.atan2(vy, vx);
     s.tint = color;
@@ -591,12 +630,24 @@ export class Game {
         Enemy.knock[e] = Math.max(0, Enemy.knock[e] - 900 * dt);
       }
       if (Enemy.flash[e] > 0) Enemy.flash[e] -= dt;
-      if (Enemy.boss[e]) {
+      const edef = ENEMY_DEFS[Enemy.kind[e]];
+      if (Enemy.boss[e] || edef.ai === 'shooter' || edef.ai === 'charger') {
         Enemy.atkCd[e] -= dt;
         if (Enemy.atkCd[e] <= 0) {
-          const atk = ENEMY_DEFS[Enemy.kind[e]].bossAttack;
-          Enemy.atkCd[e] = atk?.interval ?? 2.6;
-          this.spawnTelegraph(p.x, p.y, atk?.radius ?? 135, 0.9, Enemy.dmg[e]);
+          if (Enemy.boss[e]) {
+            this.bossAttack(e, edef);
+          } else if (edef.ai === 'shooter') {
+            Enemy.atkCd[e] = edef.shootCd ?? 2.2;
+            this.fireEnemyShot(Position.x[e], Position.y[e], Enemy.dmg[e] * 0.7, edef.shootSpeed ?? 240, edef);
+          } else {
+            Enemy.atkCd[e] = edef.chargeCd ?? 3;
+            const cdx = p.x - Position.x[e];
+            const cdy = p.y - Position.y[e];
+            const cd = Math.hypot(cdx, cdy) || 1;
+            Enemy.knx[e] = cdx / cd;
+            Enemy.kny[e] = cdy / cd;
+            Enemy.knock[e] = 640;
+          }
         }
       }
     }
@@ -606,6 +657,54 @@ export class Game {
     const g = new Graphics();
     this.worldC.addChild(g);
     this.tele.push({ g, x, y, r, t: 0, delay, dmg });
+  }
+
+  private firstMobKind(): number {
+    for (let i = 0; i < ENEMY_DEFS.length; i++) if (!ENEMY_DEFS[i].boss) return i;
+    return 0;
+  }
+
+  private fireEnemyShot(x: number, y: number, dmg: number, speed: number, def: EnemyDef): void {
+    const dx = this.player.x - x;
+    const dy = this.player.y - y;
+    const d = Math.hypot(dx, dy) || 1;
+    this.spawnHazard(x, y, (dx / d) * speed, (dy / d) * speed, dmg, 8, def.tint ?? 0xff8030);
+  }
+
+  private bossAttack(e: number, def: EnemyDef): void {
+    const p = this.player;
+    const atk = def.bossAttack;
+    Enemy.atkCd[e] = atk?.interval ?? 2.6;
+    const kind = atk?.kind ?? 'slam';
+    const bx = Position.x[e];
+    const by = Position.y[e];
+    if (kind === 'volley') {
+      const n = atk?.projCount ?? 14;
+      const spd = atk?.projSpeed ?? 220;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2;
+        this.spawnHazard(bx, by, Math.cos(a) * spd, Math.sin(a) * spd, Enemy.dmg[e] * 0.6, 10, def.tint ?? 0xff5050);
+      }
+      this.addShake(8);
+    } else if (kind === 'summon') {
+      const cnt = atk?.summonCount ?? 3;
+      const mob = this.firstMobKind();
+      for (let i = 0; i < cnt; i++) {
+        const a = Math.random() * Math.PI * 2;
+        this.spawnEnemy(mob, bx + Math.cos(a) * 70, by + Math.sin(a) * 70);
+      }
+    } else if (kind === 'charge') {
+      const dx = p.x - bx;
+      const dy = p.y - by;
+      const d = Math.hypot(dx, dy) || 1;
+      Enemy.knx[e] = dx / d;
+      Enemy.kny[e] = dy / d;
+      Enemy.knock[e] = 720;
+      this.spawnTelegraph(p.x, p.y, atk?.radius ?? 120, 0.5, Enemy.dmg[e] * 0.5);
+      this.addShake(10);
+    } else {
+      this.spawnTelegraph(p.x, p.y, atk?.radius ?? 140, 0.9, Enemy.dmg[e]);
+    }
   }
 
   private updateProjectiles(dt: number): void {
@@ -623,6 +722,21 @@ export class Game {
       const px = Position.x[e];
       const py = Position.y[e];
       const pr = Projectile.radius[e];
+      if (Projectile.enemy[e] === 1) {
+        const dxp = this.player.x - px;
+        const dyp = this.player.y - py;
+        const rr = pr + this.player.radius;
+        if (dxp * dxp + dyp * dyp < rr * rr) {
+          if (this.player.invuln <= 0) {
+            this.player.hp -= Projectile.dmg[e] * this.mods.dmgTakenMul;
+            this.player.invuln = C.PLAYER_INVULN;
+            audio.playerHurt();
+            this.addShake(7);
+          }
+          this.projDead.add(e);
+        }
+        continue;
+      }
       let pierce = Projectile.pierce[e];
       this.hash.queryRadius(px, py, pr + 30, this.cand);
       for (const en of this.cand) {
@@ -653,6 +767,14 @@ export class Game {
       if (Math.random() < 0.04) this.spawnGem(Position.x[e], Position.y[e], 0, 3);
       else this.spawnGem(Position.x[e], Position.y[e], Enemy.xp[e], kind);
       if (Enemy.boss[e]) this.win = true;
+      if (ENEMY_DEFS[Enemy.kind[e]].explodeOnDeath) {
+        const hx = Position.x[e];
+        const hy = Position.y[e];
+        for (let i = 0; i < 6; i++) {
+          const a = (i / 6) * Math.PI * 2;
+          this.spawnHazard(hx, hy, Math.cos(a) * 200, Math.sin(a) * 200, Enemy.dmg[e] * 0.8, 9, 0xff5530);
+        }
+      }
       this.kills++;
       this.releaseSprite(e);
       removeEntity(this.world, e);

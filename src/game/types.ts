@@ -102,8 +102,12 @@ export interface BehaviorHandler {
 }
 
 export interface EnemyAttack {
-  interval: number; // seconds between boss telegraphed attacks
+  interval: number; // seconds between boss attacks
   radius: number; // telegraph/AoE radius
+  kind?: 'slam' | 'volley' | 'summon' | 'charge';
+  projCount?: number; // volley: number of radial hazards
+  projSpeed?: number; // volley: hazard speed
+  summonCount?: number; // summon: adds spawned
 }
 
 // Enemies are pure data (stats + which base sprite to reuse + a tint), so the
@@ -121,6 +125,11 @@ export interface EnemyDef {
   boss?: boolean;
   spawn?: { minTime?: number; weight?: number }; // director gating (non-boss)
   bossAttack?: EnemyAttack;
+  ai?: 'seek' | 'shooter' | 'charger'; // mob behavior (default: seek)
+  shootCd?: number; // shooter: fire interval
+  shootSpeed?: number; // shooter: hazard speed
+  chargeCd?: number; // charger: dash interval
+  explodeOnDeath?: boolean; // spawn a hazard burst on death
 }
 
 // Playable survivors: a sprite tint + a starting weapon + additive stat deltas

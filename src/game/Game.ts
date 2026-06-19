@@ -1468,9 +1468,9 @@ export class Game {
     b.style.opacity = ready ? '1' : '0.75';
   }
 
-  // True while damage should be ignored: post-hit i-frames or mid-dash.
+  // True while damage should be ignored: post-hit i-frames, mid-dash, or mid-death.
   private invulnerable(): boolean {
-    return this.player.invuln > 0 || this.player.dashT > 0;
+    return this.player.invuln > 0 || this.player.dashT > 0 || this.dying;
   }
 
   // Drive the 8-direction HD survivor sprite: face the aim direction (nearest enemy,

@@ -24,21 +24,11 @@ import type { Textures } from './textures';
 const NEEDED = ['player', 'enemy0', 'enemy1', 'enemy2', 'boss'] as const;
 
 // Best-effort animation groups (indexed frame files <key>_<i>.png) and single sprites.
-const ANIM_GROUPS: Record<string, number> = {
-  player: 9, // hero walk cycle
-  z0: 9, // skinny zombie (texKind 0)
-  z1: 9, // kid zombie (texKind 1)
-  z2: 9, // big zombie (texKind 2 + boss)
-  zt: 12, // turret zombie (ranged / shooter enemies)
-  fx_exp: 6, // explosion
-  fx_blood: 5, // blood splatter
-};
-const SINGLES = [
-  'money', 'tree_0', 'tree_1', 'tree_2', 'bush_0', 'bush_1',
-  'tomb_0', 'sit_0', 'corpse_0',
-  // Terrain tiles are composited into one big varied ground texture.
-  'ground_0', 'ground_1', 'ground_2', 'ground_3',
-] as const;
+// The current art is static Meshy-rendered character sprites only, so the optional
+// animation / FX / scenery layers are disabled (empty manifests). The machinery below
+// is retained so a future animated pack can re-enable them by listing files here.
+const ANIM_GROUPS: Record<string, number> = {};
+const SINGLES: readonly string[] = [];
 
 // Baked, ready-to-use animation frames and scenery. Built once after the static pack.
 export interface AnimPack {
@@ -72,7 +62,7 @@ export function isAssetPackActive(): boolean {
 
 async function loadTex(name: string): Promise<Texture> {
   const t = (await Assets.load(spriteUrl(name))) as Texture;
-  t.source.scaleMode = 'nearest'; // low-res pixel art: no blur on upscale
+  t.source.scaleMode = 'linear'; // smooth filtering for the rendered cartoon art
   return t;
 }
 
@@ -109,11 +99,16 @@ export async function preloadAssetPack(): Promise<void> {
 
 // Bake `src` scaled to fit within a target footprint, preserving aspect ratio.
 function bakeFit(renderer: Renderer, src: Texture, w: number, h: number): Texture {
+  // Scale the source to fit (w,h) preserving aspect, then bake. The sprite is wrapped
+  // in a Container because generateTexture sizes from the target's *local* bounds,
+  // which ignore a Sprite's own scale — a Container's bounds include it.
   const spr = new Sprite(src);
   spr.scale.set(Math.min(w / src.width, h / src.height));
-  const tex = renderer.generateTexture({ target: spr, resolution: 2 });
-  tex.source.scaleMode = 'nearest'; // keep pixels crisp when scaled to world size
-  spr.destroy();
+  const cont = new Container();
+  cont.addChild(spr);
+  const tex = renderer.generateTexture({ target: cont, resolution: 2 });
+  tex.source.scaleMode = 'linear';
+  cont.destroy({ children: true });
   return tex;
 }
 

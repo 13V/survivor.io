@@ -207,11 +207,8 @@ export class Game {
     // Use the art pack's terrain tile when available; else the procedural dark grid.
     const gt = this.tex.anim?.ground;
     if (gt) return gt;
-    const g = new Graphics()
-      .rect(0, 0, 64, 64)
-      .fill(0x161a22)
-      .rect(0, 0, 64, 64)
-      .stroke({ width: 1, color: 0x202634, alignment: 0 });
+    // survivor.io-style smooth ground: flat muted mauve (vignette adds depth on top).
+    const g = new Graphics().rect(0, 0, 64, 64).fill(0x9b8a92);
     const t = this.app.renderer.generateTexture(g);
     g.destroy();
     return t;

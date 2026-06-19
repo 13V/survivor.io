@@ -1,0 +1,54 @@
+{
+  "tiles": [
+    {
+      "file": "asphalt1.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "asphalt_line1.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "asphalt_line2.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "asphalt_line3.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "asphalt_mark1.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "concrete1.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "cobble1.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "cobble2.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "dirt1.png",
+      "w": 128,
+      "h": 128
+    },
+    {
+      "file": "sidewalk1.png",
+      "w": 128,
+      "h": 128
+    }
+  ]
+}

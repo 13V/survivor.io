@@ -21,6 +21,7 @@ import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
 import { createTextures, type Textures } from './textures';
 import { dirRow, type SurvivorSprite, type DirAnim } from './survivorSprite';
 import { resolveZombieType, dir5, ORIG_CELL, type ZombieAssets, type ZombieAnims, type DirAnimZ } from './zombieSprite';
+import type { EnvAssets } from './environment';
 import { Particles } from './particles';
 import {
   WEAPONS,
@@ -169,6 +170,15 @@ export class Game {
   private artUpright = false;
   // Art-pack animation + scenery layer (populated only when the extras loaded).
   private decoC = new Container();
+  // Urban environment: flat ground decals (blood/grime) below, scattered iso props above,
+  // all depth-sorted with the cast by base-Y.
+  private env: EnvAssets | null = null;
+  private decalC = new Container();
+  private envProps: Sprite[] = [];
+  private firePhase = 0;
+  private fireBarrels: { s: Sprite; t: number }[] = [];
+  private vignette: Sprite | null = null;
+  private muzzleSprite: Sprite | null = null;
   private fxC = new Container();
   private animClock = 0;
   private animFrame = 0;
@@ -226,6 +236,16 @@ export class Game {
     this.worldC.addChild(this.petSprite);
 
     this.worldC.addChild(this.fxC); // hit / death FX render above the cast
+
+    // Environment: depth-sort the world by base-Y so the cast walks behind props/buildings.
+    this.env = this.tex.env ?? null;
+    this.worldC.sortableChildren = true;
+    this.worldC.addChildAt(this.decalC, 0); // flat blood/grime decals on the ground
+    this.decalC.zIndex = -1e6;
+    this.decoC.zIndex = -9e5;
+    this.fxC.zIndex = 1e6;
+    if (this.env) this.makeVignette();
+
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
     this.zombies = this.tex.zombies ?? null;
     this.survivor = this.tex.survivor ?? null;
@@ -246,7 +266,39 @@ export class Game {
     app.ticker.add(() => this.frame());
   }
 
+  private makeVignette(): void {
+    const cv = document.createElement('canvas');
+    cv.width = 256;
+    cv.height = 256;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const grd = ctx.createRadialGradient(128, 128, 36, 128, 128, 152);
+    grd.addColorStop(0, 'rgba(0,0,0,0)');
+    grd.addColorStop(0.62, 'rgba(0,0,0,0)');
+    grd.addColorStop(1, 'rgba(5,6,9,0.62)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, 256, 256);
+    const v = new Sprite(Texture.from(cv));
+    v.width = this.app.screen.width;
+    v.height = this.app.screen.height;
+    this.app.stage.addChild(v); // above the world, below the DOM HUD
+    this.vignette = v;
+  }
+
   private makeGroundTexture(): Texture {
+    // Gritty mid-grey asphalt for the city (the pack's actual street tiles are scattered
+    // as decals on top). Mid value so the cast, blood and props read clearly over it.
+    if (this.tex.env) {
+      // Uniform mid-grey base + only fine speckle, so the tiling shows no repeating grid;
+      // all larger variety (cracks, patches, blood) comes from non-repeating scattered decals.
+      // Solid mid-grey asphalt — a uniform tile cannot show a tiling seam; every bit of
+      // grit (cracks, oil, patches, blood) comes from the non-repeating scattered decals.
+      const g = new Graphics().rect(0, 0, 16, 16).fill(0x3d4147);
+      const t = this.app.renderer.generateTexture({ target: g, antialias: false, resolution: 1 });
+      t.source.scaleMode = 'nearest';
+      g.destroy();
+      return t;
+    }
     // Use the art pack's terrain tile when available; else the procedural dark grid.
     const gt = this.tex.anim?.ground;
     if (gt) return gt;
@@ -260,25 +312,101 @@ export class Game {
   // Scatter static scenery (trees/bushes/tombstones/etc.) around the arena. Purely
   // visual — placed behind the cast in decoC and left to scroll with the world.
   private scatterProps(): void {
-    for (const c of this.decoC.removeChildren()) c.destroy();
-    const props = this.tex.anim?.props;
-    if (!props || !props.length) return;
-    const R = 2400; // half-extent of the decorated area around the spawn
-    for (let i = 0; i < 120; i++) {
+    // clear previous dressing
+    for (const c of this.decalC.removeChildren()) c.destroy();
+    for (const s of this.envProps) {
+      this.worldC.removeChild(s);
+      s.destroy();
+    }
+    this.envProps = [];
+    this.fireBarrels = [];
+
+    const env = this.env;
+    const R = 1900; // decorated half-extent around the spawn
+    const clear = 190; // keep the spawn point itself walkable
+
+    if (!env) {
+      // legacy fallback: the old art-pack props, flat behind the cast
+      for (const c of this.decoC.removeChildren()) c.destroy();
+      const props = this.tex.anim?.props;
+      if (props?.length) {
+        for (let i = 0; i < 120; i++) {
+          const px = (Math.random() * 2 - 1) * R;
+          const py = (Math.random() * 2 - 1) * R;
+          if (px * px + py * py < clear * clear) continue;
+          const s = new Sprite(props[(Math.random() * props.length) | 0]);
+          s.anchor.set(0.5, 0.7);
+          s.position.set(px, py);
+          s.alpha = 0.9;
+          this.decoC.addChild(s);
+        }
+      }
+      return;
+    }
+
+    // --- flat ground decals (street-surface patches, grime, blood) on the floor ---
+    const decalSets: { tex: Texture[]; n: number; smin: number; smax: number; alpha: number }[] = [
+      { tex: env.ground.slice(5), n: 30, smin: 1.0, smax: 1.6, alpha: 0.42 }, // sidewalk / cobble / concrete patches
+      { tex: env.detail, n: 90, smin: 0.7, smax: 1.5, alpha: 0.78 }, // cracks / debris / oil / paint
+      { tex: env.decals, n: 85, smin: 0.8, smax: 1.9, alpha: 0.8 }, // dried blood
+    ];
+    for (const set of decalSets) {
+      if (!set.tex.length) continue;
+      for (let i = 0; i < set.n; i++) {
+        const s = new Sprite(set.tex[(Math.random() * set.tex.length) | 0]);
+        s.anchor.set(0.5);
+        s.position.set((Math.random() * 2 - 1) * R, (Math.random() * 2 - 1) * R);
+        s.rotation = Math.random() * Math.PI * 2;
+        s.scale.set(set.smin + Math.random() * (set.smax - set.smin));
+        s.alpha = set.alpha * (0.7 + Math.random() * 0.3);
+        this.decalC.addChild(s);
+      }
+    }
+
+    // --- upright iso props, depth-sorted with the cast by base-Y ---
+    const propSets: { tex: Texture[]; n: number; scale: number; jit: number }[] = [
+      { tex: env.buildings, n: 18, scale: 1.2, jit: 0.18 },
+      { tex: env.cars, n: 20, scale: 1.05, jit: 0.15 },
+      { tex: env.objects, n: 70, scale: 0.85, jit: 0.25 },
+      { tex: env.flora, n: 64, scale: 0.9, jit: 0.3 },
+      { tex: env.street, n: 38, scale: 0.95, jit: 0.2 },
+    ];
+    const addProp = (tex: Texture, sc: number): Sprite | null => {
       const px = (Math.random() * 2 - 1) * R;
       const py = (Math.random() * 2 - 1) * R;
-      if (px * px + py * py < 170 * 170) continue; // keep the spawn point clear
-      const s = new Sprite(props[(Math.random() * props.length) | 0]);
-      s.anchor.set(0.5, 0.7); // rest props on their base
+      if (px * px + py * py < clear * clear) return null;
+      const s = new Sprite(tex);
+      s.anchor.set(0.5, 0.92); // rest on its base so base-Y sorts correctly
       s.position.set(px, py);
-      s.alpha = 0.9;
-      this.decoC.addChild(s);
+      s.scale.set(sc);
+      s.zIndex = py;
+      this.worldC.addChild(s);
+      this.envProps.push(s);
+      return s;
+    };
+    for (const set of propSets) {
+      if (!set.tex.length) continue;
+      for (let i = 0; i < set.n; i++) {
+        addProp(set.tex[(Math.random() * set.tex.length) | 0], set.scale * (1 - set.jit + Math.random() * set.jit * 2));
+      }
+    }
+
+    // --- a few flaming barrels (animated atmosphere) ---
+    if (env.firebarrel.length) {
+      for (let i = 0; i < 7; i++) {
+        const s = addProp(env.firebarrel[0], 0.95);
+        if (s) this.fireBarrels.push({ s, t: Math.random() * 10 });
+      }
     }
   }
 
   private onResize(): void {
     this.bg.width = this.app.screen.width;
     this.bg.height = this.app.screen.height;
+    if (this.vignette) {
+      this.vignette.width = this.app.screen.width;
+      this.vignette.height = this.app.screen.height;
+    }
   }
 
   private addShake(n: number): void {
@@ -998,15 +1126,25 @@ export class Game {
         if (ex?.length)
           this.spawnAnimFx(ex, Position.x[e], Position.y[e], Enemy.boss[e] ? 2.6 : 1.05, 0.45);
       }
+      const bfx = this.env?.bloodfx;
       const blood = this.zombies?.blood;
-      if (died && blood?.length && this.animFx.length < 60)
-        this.spawnAnimFx(
-          blood[(Math.random() * blood.length) | 0],
-          Position.x[e],
-          Position.y[e],
-          (Enemy.radius[e] * 2.6) / 64,
-          0.5,
-        );
+      if (died && this.animFx.length < 60) {
+        if (bfx?.length)
+          this.spawnAnimFx(bfx[(Math.random() * bfx.length) | 0], Position.x[e], Position.y[e], (Enemy.radius[e] * 2.8) / 96, 0.55);
+        else if (blood?.length)
+          this.spawnAnimFx(blood[(Math.random() * blood.length) | 0], Position.x[e], Position.y[e], (Enemy.radius[e] * 2.6) / 64, 0.5);
+      }
+      // permanent pooled blood left on the street
+      const edec = this.env?.decals;
+      if (died && edec?.length && this.decalC.children.length < 700) {
+        const ds = new Sprite(edec[(Math.random() * edec.length) | 0]);
+        ds.anchor.set(0.5);
+        ds.position.set(Position.x[e], Position.y[e]);
+        ds.rotation = Math.random() * Math.PI * 2;
+        ds.scale.set(0.7 + Math.random() * 0.6);
+        ds.alpha = 0.85;
+        this.decalC.addChild(ds);
+      }
       this.kills++;
       removeEntity(this.world, e);
     }
@@ -1414,7 +1552,7 @@ export class Game {
     // Real pixel-art player shows untinted; a per-character colour multiply would
     // discolour the sprite. (Procedural mode still tints to tell characters apart.)
     this.playerSprite.tint = this.artUpright ? 0xffffff : (this.character.tint ?? 0xffffff);
-    this.bg.tint = this.stage.tint ?? 0xffffff;
+    this.bg.tint = this.env ? 0xffffff : (this.stage.tint ?? 0xffffff);
     if (this.pet) {
       this.petSprite.visible = true;
       this.petSprite.tint = this.pet.color;
@@ -1567,6 +1705,7 @@ export class Game {
     this.bg.tilePosition.set(-p.x + ox, -p.y + oy);
 
     this.playerSprite.position.set(p.x, p.y);
+    this.playerSprite.zIndex = p.y;
     if (this.survivor) {
       this.updateSurvivorSprite();
     } else {
@@ -1588,6 +1727,26 @@ export class Game {
       }
     }
     this.syncDashButton();
+
+    // muzzle flash at the gun muzzle while firing at a nearby target
+    const mz = this.env?.muzzle;
+    if (mz?.length && this.survivor) {
+      if (!this.muzzleSprite) {
+        this.muzzleSprite = new Sprite(mz[0]);
+        this.muzzleSprite.anchor.set(0.5, 0.95);
+        this.muzzleSprite.zIndex = 1e6 + 1;
+        this.fxC.addChild(this.muzzleSprite);
+      }
+      const firing = !this.dying && this.nearestEnemy(p.x, p.y, 820) >= 0;
+      this.muzzleSprite.visible = firing;
+      if (firing) {
+        this.muzzleSprite.position.set(p.x + Math.cos(this.survFacing) * 26, p.y + Math.sin(this.survFacing) * 26 - 6);
+        this.muzzleSprite.rotation = this.survFacing + Math.PI / 2;
+        this.muzzleSprite.texture = mz[Math.floor(this.time * 26) % mz.length];
+        this.muzzleSprite.scale.set(1.1);
+      }
+    }
+
     if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
 
     for (const e of enemyQuery(this.world)) {
@@ -1596,6 +1755,7 @@ export class Game {
       const ex = Position.x[e];
       const ey = Position.y[e];
       s.position.set(ex, ey);
+      s.zIndex = ey;
       const za = this.enemyZ[e];
       if (za) {
         // HD zombie: 8-direction facing via 5 stored rows + horizontal mirror. Swing the
@@ -1650,11 +1810,25 @@ export class Game {
     }
     for (const e of projQuery(this.world)) {
       const s = this.spr[e];
-      if (s) s.position.set(Position.x[e], Position.y[e]);
+      if (s) {
+        s.position.set(Position.x[e], Position.y[e]);
+        s.zIndex = Position.y[e] + 40; // bullets fly above the cast
+      }
     }
     for (const e of gemQuery(this.world)) {
       const s = this.spr[e];
-      if (s) s.position.set(Position.x[e], Position.y[e]);
+      if (s) {
+        s.position.set(Position.x[e], Position.y[e]);
+        s.zIndex = Position.y[e];
+      }
+    }
+    // animate scattered flaming barrels
+    if (this.env?.firebarrel.length && this.fireBarrels.length) {
+      const fr = this.env.firebarrel;
+      const base = Math.floor(this.time * 13);
+      for (let i = 0; i < this.fireBarrels.length; i++) {
+        this.fireBarrels[i].s.texture = fr[(base + i * 4) % fr.length];
+      }
     }
 
     // orbit blades

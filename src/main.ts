@@ -4,6 +4,7 @@ import { Game } from './game/Game';
 import { preloadAssetPack } from './game/assetPack';
 import { preloadSurvivor } from './game/survivorSprite';
 import { preloadZombies } from './game/zombieSprite';
+import { preloadEnv } from './game/environment';
 import { Hud } from './ui/hud';
 import { TitleScreen } from './ui/menu';
 import { SettingsPanel } from './ui/settings';
@@ -38,6 +39,8 @@ async function main(): Promise<void> {
   await preloadSurvivor();
   // HD zombie enemy sheets (falls back to the pixel zombie if absent).
   await preloadZombies();
+  // Urban environment scenery + blood decals.
+  await preloadEnv();
 
   registerSW();
   enableTapFullscreen();

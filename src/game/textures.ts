@@ -11,6 +11,8 @@ import { buildSurvivor } from './survivorSprite';
 import type { SurvivorSprite } from './survivorSprite';
 import { buildZombies } from './zombieSprite';
 import type { ZombieAssets } from './zombieSprite';
+import { buildEnv } from './environment';
+import type { EnvAssets } from './environment';
 
 export interface Textures {
   player: Texture;
@@ -25,6 +27,8 @@ export interface Textures {
   survivor?: SurvivorSprite | null;
   // HD zombie enemy set (types + Acid/Blood FX), null if not loaded.
   zombies?: ZombieAssets | null;
+  // Urban environment scenery + decals (null if not loaded).
+  env?: EnvAssets | null;
 }
 
 // Bake a Graphics into a texture and clean it up. All builders funnel through here.
@@ -330,5 +334,6 @@ export function createTextures(renderer: Renderer): Textures {
   }
   tex.survivor = buildSurvivor();
   tex.zombies = buildZombies();
+  tex.env = buildEnv();
   return tex;
 }

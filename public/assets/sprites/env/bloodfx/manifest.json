@@ -1,0 +1,104 @@
+{
+  "effects": [
+    {
+      "name": "Blood1",
+      "frames": [
+        "Blood1/frame_00.png",
+        "Blood1/frame_01.png",
+        "Blood1/frame_02.png",
+        "Blood1/frame_03.png",
+        "Blood1/frame_04.png",
+        "Blood1/frame_05.png",
+        "Blood1/frame_06.png",
+        "Blood1/frame_07.png",
+        "Blood1/frame_08.png",
+        "Blood1/frame_09.png",
+        "Blood1/frame_10.png",
+        "Blood1/frame_11.png",
+        "Blood1/frame_12.png",
+        "Blood1/frame_13.png",
+        "Blood1/frame_14.png"
+      ]
+    },
+    {
+      "name": "Blood2",
+      "frames": [
+        "Blood2/frame_00.png",
+        "Blood2/frame_01.png",
+        "Blood2/frame_02.png",
+        "Blood2/frame_03.png",
+        "Blood2/frame_04.png",
+        "Blood2/frame_05.png",
+        "Blood2/frame_06.png",
+        "Blood2/frame_07.png",
+        "Blood2/frame_08.png",
+        "Blood2/frame_09.png",
+        "Blood2/frame_10.png",
+        "Blood2/frame_11.png",
+        "Blood2/frame_12.png",
+        "Blood2/frame_13.png",
+        "Blood2/frame_14.png"
+      ]
+    },
+    {
+      "name": "Blood3",
+      "frames": [
+        "Blood3/frame_00.png",
+        "Blood3/frame_01.png",
+        "Blood3/frame_02.png",
+        "Blood3/frame_03.png",
+        "Blood3/frame_04.png",
+        "Blood3/frame_05.png",
+        "Blood3/frame_06.png",
+        "Blood3/frame_07.png",
+        "Blood3/frame_08.png",
+        "Blood3/frame_09.png",
+        "Blood3/frame_10.png",
+        "Blood3/frame_11.png",
+        "Blood3/frame_12.png",
+        "Blood3/frame_13.png",
+        "Blood3/frame_14.png"
+      ]
+    },
+    {
+      "name": "Blood4",
+      "frames": [
+        "Blood4/frame_00.png",
+        "Blood4/frame_01.png",
+        "Blood4/frame_02.png",
+        "Blood4/frame_03.png",
+        "Blood4/frame_04.png",
+        "Blood4/frame_05.png",
+        "Blood4/frame_06.png",
+        "Blood4/frame_07.png",
+        "Blood4/frame_08.png",
+        "Blood4/frame_09.png",
+        "Blood4/frame_10.png",
+        "Blood4/frame_11.png",
+        "Blood4/frame_12.png",
+        "Blood4/frame_13.png",
+        "Blood4/frame_14.png"
+      ]
+    },
+    {
+      "name": "Blood5",
+      "frames": [
+        "Blood5/frame_00.png",
+        "Blood5/frame_01.png",
+        "Blood5/frame_02.png",
+        "Blood5/frame_03.png",
+        "Blood5/frame_04.png",
+        "Blood5/frame_05.png",
+        "Blood5/frame_06.png",
+        "Blood5/frame_07.png",
+        "Blood5/frame_08.png",
+        "Blood5/frame_09.png",
+        "Blood5/frame_10.png",
+        "Blood5/frame_11.png",
+        "Blood5/frame_12.png",
+        "Blood5/frame_13.png",
+        "Blood5/frame_14.png"
+      ]
+    }
+  ]
+}

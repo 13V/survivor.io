@@ -8,7 +8,11 @@ short dash ability (tap the on-screen button or Space/Shift) with i-frames + coo
 Sheets live in assets/sprites/survivor/.
 
 ENEMIES: HD "2D Zombie Pack 1" (same creator as the survivor), all 36 zombie types, each
-with SIX animations: Run, Walk, Attack1, Attack2, Die, Die2.
+with ALL 15 animations: Run, Walk, CrouchRun, Attack1-5, Die, Die2, Idle, Idle2,
+TakeDamage, Taunt, WakeUp. In-game they are driven by state: WakeUp emerge on spawn ->
+Walk/Run/CrouchRun by speed + gait -> a random Attack variant in reach -> Idle reel while
+knocked back -> a brief TakeDamage flinch when shot -> an occasional Taunt roar -> a random
+Die variant on death.
 
   Memory trick (src/game/zombieSprite.ts + tools that produced assets/sprites/zombies/):
   loading every animation as full 8-direction sheets would be ~1GB of GPU memory. Two
@@ -17,15 +21,15 @@ with SIX animations: Run, Walk, Attack1, Attack2, Die, Die2.
   (2) each sheet is mostly empty padding (~5% filled for Run), so every sheet is cropped
   to the figures' bounding box. A per-sheet feet-line (atlas.json) is baked so the crop is
   invisible -- the sprite is scaled by the ORIGINAL cell and anchored by the baked Y, so
-  feet stay planted. Result: 6 animations x 36 types in ~120MB instead of ~1GB.
+  feet stay planted. Result: all 15 animations x 36 types fit in roughly a quarter of the
+  memory the full sheets would need, and the 540 trimmed sheets are ~32MB on disk.
 
   Behaviour: a random type per spawn from the class pool (texKind 0=walkers, 1=fast,
   2=brutes, 3=bosses); named bosses get a signature type (ZOMBIE_BY_ID). Slow movers
   shamble (Walk), faster ones Run; they swing a random Attack variant when in reach of the
   player; on death the sprite is handed to a random Die variant that fades out. Acid/Blood
   FX strips (zombies/_fx/): blood on death, acid on exploder deaths + where enemy (spitter)
-  shots hit you. More animations exist in the pack (Idle/Taunt/WakeUp/CrouchRun/Attack3-5/
-  Idle2) and can be added the same way.
+  shots hit you. Every animation the pack ships per type is now wired in.
 
 OTHER: projectiles, blades, gems and the flat mauve ground are procedurally generated
 (src/game/textures.ts). The procedural cartoon hero + pixel zombie remain as fallbacks if

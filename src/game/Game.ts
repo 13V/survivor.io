@@ -99,6 +99,8 @@ const Z_DISPLAY_K = 7.2;
 
 // Player death sequence: play the survivor Die animation, then show the game-over card.
 const DEATH_DUR = 1.3;
+// Zombies hold position briefly on spawn while their WakeUp (emerge) animation plays.
+const WAKE_DUR = 0.42;
 
 export class Game {
   private world: IWorld = createWorld();
@@ -183,6 +185,11 @@ export class Game {
   private enemyZ: (ZombieAnims | undefined)[] = [];
   private enemyAtk: number[] = []; // chosen Attack variant per entity
   private enemyDie: number[] = []; // chosen Die variant per entity
+  private enemyIdle: number[] = []; // chosen Idle variant per entity
+  private enemyGait: number[] = []; // 0 = run, 1 = crouch-run (when fast)
+  private enemySpawnT: number[] = []; // spawn time, for the WakeUp emerge
+  private enemyHitT: number[] = []; // TakeDamage flinch timer
+  private enemyTauntEnd: number[] = []; // time until current Taunt ends
   // Sprites detached from dead zombies, playing their one-shot Die animation.
   private zDeaths: { s: Sprite; die: DirAnimZ; row: number; flip: boolean; t: number; dur: number }[] = [];
   private enemyWalk: (Texture[] | undefined)[] = [];
@@ -447,8 +454,13 @@ export class Game {
         s.scale.set((def.radius * Z_DISPLAY_K) / ORIG_CELL);
         this.spr[eid] = s;
         this.enemyZ[eid] = za;
-        this.enemyAtk[eid] = (Math.random() * 2) | 0;
+        this.enemyAtk[eid] = (Math.random() * 5) | 0;
         this.enemyDie[eid] = (Math.random() * 2) | 0;
+        this.enemyIdle[eid] = (Math.random() * 2) | 0;
+        this.enemyGait[eid] = Math.random() < 0.4 ? 1 : 0;
+        this.enemySpawnT[eid] = this.time;
+        this.enemyHitT[eid] = 0;
+        this.enemyTauntEnd[eid] = 0;
         this.enemyWalk[eid] = undefined;
         return eid;
       }
@@ -600,6 +612,7 @@ export class Game {
     const dmg = base * (crit ? this.mods.critDmg : 1);
     Enemy.hp[eid] -= dmg;
     Enemy.flash[eid] = 0.09;
+    if (this.enemyZ[eid] && Math.random() < 0.3) this.enemyHitT[eid] = 0.2; // occasional flinch
     this.particles.spark(Position.x[eid], Position.y[eid], 0xfff2a0);
     const bl = this.tex.anim?.blood;
     if (bl?.length && this.animFx.length < 48 && Math.random() < 0.33)
@@ -806,8 +819,16 @@ export class Game {
       const dx = p.x - Position.x[e];
       const dy = p.y - Position.y[e];
       const d = Math.hypot(dx, dy) || 1;
-      Position.x[e] += (dx / d) * Enemy.speed[e] * dt;
-      Position.y[e] += (dy / d) * Enemy.speed[e] * dt;
+      // Hold position briefly on spawn while the WakeUp emerge animation plays.
+      const waking = this.enemyZ[e] !== undefined && this.time - this.enemySpawnT[e] < WAKE_DUR;
+      if (!waking) {
+        Position.x[e] += (dx / d) * Enemy.speed[e] * dt;
+        Position.y[e] += (dy / d) * Enemy.speed[e] * dt;
+      }
+      if (this.enemyHitT[e] > 0) this.enemyHitT[e] -= dt;
+      // Occasional Taunt roar when not crowding the player.
+      if (this.enemyZ[e] && !waking && this.enemyTauntEnd[e] < this.time && d > 240 && Math.random() < 0.0011)
+        this.enemyTauntEnd[e] = this.time + 1.1;
       if (Enemy.knock[e] > 0) {
         Position.x[e] += Enemy.knx[e] * Enemy.knock[e] * dt;
         Position.y[e] += Enemy.kny[e] * Enemy.knock[e] * dt;
@@ -1342,6 +1363,11 @@ export class Game {
     this.enemyZ = [];
     this.enemyAtk = [];
     this.enemyDie = [];
+    this.enemyIdle = [];
+    this.enemyGait = [];
+    this.enemySpawnT = [];
+    this.enemyHitT = [];
+    this.enemyTauntEnd = [];
     for (const d of this.zDeaths) {
       d.s.visible = false;
       d.s.alpha = 1;
@@ -1580,13 +1606,29 @@ export class Game {
         const dy = p.y - ey;
         const m = dir5(dirRow(Math.atan2(dy, dx)));
         const reach = Enemy.radius[e] + p.radius + 8;
+        const age = this.time - this.enemySpawnT[e];
         let anim: DirAnimZ;
-        if (za.attack.length && dx * dx + dy * dy < reach * reach) {
-          anim = za.attack[this.enemyAtk[e] % za.attack.length];
+        let shot = -1; // >=0 => play once over this many elapsed seconds
+        if (age < WAKE_DUR && za.wakeUp) {
+          anim = za.wakeUp; // emerge
+          shot = age;
+        } else if (Enemy.knock[e] > 0 && za.idle.length) {
+          anim = za.idle[this.enemyIdle[e] % za.idle.length]; // reel while knocked back
+        } else if (za.attack.length && dx * dx + dy * dy < reach * reach) {
+          anim = za.attack[this.enemyAtk[e] % za.attack.length]; // melee variant
+        } else if (this.enemyHitT[e] > 0 && za.takeDamage) {
+          anim = za.takeDamage; // flinch
+          shot = 0.2 - this.enemyHitT[e];
+        } else if (this.enemyTauntEnd[e] > this.time && za.taunt) {
+          anim = za.taunt; // occasional roar
         } else {
-          anim = Enemy.speed[e] < 78 ? za.walk : za.run;
+          anim = Enemy.speed[e] < 78 ? za.walk : this.enemyGait[e] ? za.crouch : za.run; // gait
         }
-        s.texture = anim.frames[m.row][Math.floor(this.time * anim.fps + e) % anim.count];
+        const f =
+          shot >= 0
+            ? Math.min(anim.count - 1, Math.max(0, Math.floor(shot * anim.fps)))
+            : Math.floor(this.time * anim.fps + e) % anim.count;
+        s.texture = anim.frames[m.row][f];
         const sc = (Enemy.radius[e] * Z_DISPLAY_K) / ORIG_CELL;
         s.scale.set(m.flip ? -sc : sc, sc);
         s.anchor.set(0.5, anim.anchorY);

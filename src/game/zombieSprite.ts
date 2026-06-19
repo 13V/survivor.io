@@ -42,7 +42,11 @@ export const ZOMBIE_BY_ID: Record<string, string> = {
 };
 
 const ALL = [...new Set([...ZOMBIE_POOLS.flat(), ...Object.values(ZOMBIE_BY_ID)])];
-const ANIMS = ['Run', 'Walk', 'Attack1', 'Attack2', 'Die', 'Die2'] as const;
+const ANIMS = [
+  'Run', 'Walk', 'CrouchRun',
+  'Attack1', 'Attack2', 'Attack3', 'Attack4', 'Attack5',
+  'Die', 'Die2', 'Idle', 'Idle2', 'TakeDamage', 'Taunt', 'WakeUp',
+] as const;
 const FX = ['Acid1', 'Acid2', 'Acid3', 'Acid4', 'Acid5', 'Blood1', 'Blood2', 'Blood3', 'Blood4', 'Blood5'];
 
 export interface DirAnimZ {
@@ -54,8 +58,13 @@ export interface DirAnimZ {
 export interface ZombieAnims {
   run: DirAnimZ;
   walk: DirAnimZ;
-  attack: DirAnimZ[]; // Attack1, Attack2
+  crouch: DirAnimZ;
+  attack: DirAnimZ[]; // Attack1..5
   die: DirAnimZ[]; // Die, Die2
+  idle: DirAnimZ[]; // Idle, Idle2
+  takeDamage: DirAnimZ | null;
+  taunt: DirAnimZ | null;
+  wakeUp: DirAnimZ | null;
 }
 export type ZombieSet = Record<string, ZombieAnims>;
 export interface ZombieAssets {
@@ -130,11 +139,18 @@ export function buildZombies(): ZombieAssets | null {
   for (const t of ALL) {
     const run = sliceZ(t, 'Run', 16);
     if (!run) continue;
+    const slof = (keys: string[], fps: number): DirAnimZ[] =>
+      keys.map((k) => sliceZ(t, k, fps)).filter(Boolean) as DirAnimZ[];
     types[t] = {
       run,
       walk: sliceZ(t, 'Walk', 11) ?? run,
-      attack: [sliceZ(t, 'Attack1', 18), sliceZ(t, 'Attack2', 18)].filter(Boolean) as DirAnimZ[],
-      die: [sliceZ(t, 'Die', 18), sliceZ(t, 'Die2', 18)].filter(Boolean) as DirAnimZ[],
+      crouch: sliceZ(t, 'CrouchRun', 14) ?? run,
+      attack: slof(['Attack1', 'Attack2', 'Attack3', 'Attack4', 'Attack5'], 18),
+      die: slof(['Die', 'Die2'], 18),
+      idle: slof(['Idle', 'Idle2'], 8),
+      takeDamage: sliceZ(t, 'TakeDamage', 20),
+      taunt: sliceZ(t, 'Taunt', 12),
+      wakeUp: sliceZ(t, 'WakeUp', 14),
     };
   }
   const acid: Texture[][] = [];

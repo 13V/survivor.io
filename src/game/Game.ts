@@ -129,6 +129,9 @@ export class Game {
   private acc = 0;
   private lastHitSfx = -1;
   private lastPickSfx = -1;
+  private shakeMag = 0;
+  private hitstop = 0;
+  private flashEl!: HTMLDivElement;
 
   constructor(
     private app: Application,
@@ -151,6 +154,11 @@ export class Game {
 
     window.addEventListener('resize', () => this.onResize());
 
+    this.flashEl = document.createElement('div');
+    this.flashEl.style.cssText =
+      'position:fixed;inset:0;pointer-events:none;z-index:8;opacity:0;transition:opacity 0.18s ease;background:#fff;';
+    document.body.appendChild(this.flashEl);
+
     this.buildContext();
     this.reset();
     app.ticker.add(() => this.frame());
@@ -170,6 +178,19 @@ export class Game {
   private onResize(): void {
     this.bg.width = this.app.screen.width;
     this.bg.height = this.app.screen.height;
+  }
+
+  private addShake(n: number): void {
+    this.shakeMag = Math.min(24, Math.max(this.shakeMag, n));
+  }
+
+  private flash(color = '#ffffff', a = 0.5): void {
+    if (settings.reduceMotion) return;
+    this.flashEl.style.background = color;
+    this.flashEl.style.opacity = String(a);
+    requestAnimationFrame(() => {
+      this.flashEl.style.opacity = '0';
+    });
   }
 
   // Capabilities exposed to weapon behaviors (see behaviors.ts).
@@ -497,6 +518,9 @@ export class Game {
     this.bossEid = this.spawnEnemy(bk, this.player.x, this.player.y - 360);
     audio.bossSpawn();
     audio.setBossMode(true);
+    this.addShake(16);
+    this.flash('#ff5050', 0.3);
+    this.hitstop = 0.05;
   }
 
   private updateEnemies(dt: number): void {
@@ -595,6 +619,7 @@ export class Game {
         p.hp -= Enemy.dmg[e] * this.mods.dmgTakenMul;
         p.invuln = C.PLAYER_INVULN;
         audio.playerHurt();
+        this.addShake(8);
         break;
       }
     }
@@ -658,7 +683,9 @@ export class Game {
           this.player.hp -= tg.dmg * this.mods.dmgTakenMul;
           this.player.invuln = C.PLAYER_INVULN;
           audio.playerHurt();
+          this.addShake(10);
         }
+        this.spawnNovaRing(tg.x, tg.y, tg.r, 0xff4444);
         tg.g.destroy();
         this.tele.splice(i, 1);
       }
@@ -725,6 +752,10 @@ export class Game {
         w.blades = [];
         if (evDef.orbit) this.rebuildBlades(w);
         audio.levelUp();
+        this.flash('#ffffff', 0.6);
+        this.addShake(12);
+        this.hitstop = 0.06;
+        this.spawnNovaRing(this.player.x, this.player.y, 150, evDef.color);
         break;
       }
     }
@@ -737,6 +768,7 @@ export class Game {
 
   private openLevelUp(): void {
     audio.levelUp();
+    this.flash('#9bbcff', 0.22);
     this.state = 'paused';
     this.input.enabled = false;
     this.hud.showLevelUp(this.buildOptions(), (o) => this.applyOption(o));
@@ -899,6 +931,7 @@ export class Game {
 
   private step(dt: number): void {
     this.time += dt;
+    this.shakeMag = Math.max(0, this.shakeMag - 50 * dt);
     this.input.update();
     this.movePlayer(dt);
     this.spawnDirector(dt);
@@ -926,9 +959,12 @@ export class Game {
 
   private render(): void {
     const p = this.player;
-    this.worldC.x = this.app.screen.width / 2 - p.x;
-    this.worldC.y = this.app.screen.height / 2 - p.y;
-    this.bg.tilePosition.set(-p.x, -p.y);
+    const sh = settings.reduceMotion ? 0 : this.shakeMag;
+    const ox = sh ? (Math.random() * 2 - 1) * sh : 0;
+    const oy = sh ? (Math.random() * 2 - 1) * sh : 0;
+    this.worldC.x = this.app.screen.width / 2 - p.x + ox;
+    this.worldC.y = this.app.screen.height / 2 - p.y + oy;
+    this.bg.tilePosition.set(-p.x + ox, -p.y + oy);
 
     this.playerSprite.position.set(p.x, p.y);
     this.playerSprite.alpha = p.invuln > 0 ? 0.55 : 1;
@@ -1010,6 +1046,11 @@ export class Game {
 
   private frame(): void {
     const dt = Math.min(this.app.ticker.deltaMS / 1000, C.MAX_FRAME_DT);
+    if (this.hitstop > 0) {
+      this.hitstop -= dt;
+      this.render();
+      return;
+    }
     if (this.state === 'play') {
       this.acc += dt;
       while (this.acc >= C.FIXED_DT) {

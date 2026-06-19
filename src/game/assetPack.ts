@@ -1,9 +1,14 @@
-// Optional CC0 art pack (Kenney "Top-down Shooter", public domain) overlaid on top
-// of the procedural textures. The real PNGs live in public/assets/sprites/ and are
+// Optional pixel-art pack ("Zombie Apocalypse Tileset" by Ittai Manero) overlaid on
+// top of the procedural textures. The real PNGs live in public/assets/sprites/ and are
 // copied verbatim into the build (and cached by the service worker on first load).
 // Each is baked to the SAME footprint as the procedural slot it replaces, so the
-// game's existing scale math is unchanged — a pure drop-in. If the files are missing
-// or fail to load, the procedural art is used as a fallback and nothing else changes.
+// game's existing scale math is unchanged — a near drop-in. The source art is low-res
+// (~16px) pixel art, so the textures use nearest-neighbour scaling to stay crisp when
+// scaled up. If the files are missing or fail to load, the procedural art is used as a
+// fallback and nothing else changes.
+//
+// Licence note: the pack permits commercial/personal use but forbids redistribution,
+// so it lives only in this (private) repo — see public/assets/sprites/CREDITS.txt.
 import { Assets, Sprite } from 'pixi.js';
 import type { Renderer, Texture } from 'pixi.js';
 import type { Textures } from './textures';
@@ -33,7 +38,9 @@ export async function preloadAssetPack(): Promise<void> {
     const loaded: Record<string, Texture> = {};
     await Promise.all(
       NEEDED.map(async (n) => {
-        loaded[n] = (await Assets.load(spriteUrl(n))) as Texture;
+        const t = (await Assets.load(spriteUrl(n))) as Texture;
+        t.source.scaleMode = 'nearest'; // low-res pixel art: no blur on upscale
+        loaded[n] = t;
       }),
     );
     raw = loaded;
@@ -47,6 +54,7 @@ function bakeFit(renderer: Renderer, src: Texture, w: number, h: number): Textur
   const spr = new Sprite(src);
   spr.scale.set(Math.min(w / src.width, h / src.height));
   const tex = renderer.generateTexture({ target: spr, resolution: 2 });
+  tex.source.scaleMode = 'nearest'; // keep pixels crisp when scaled to world size
   spr.destroy();
   return tex;
 }

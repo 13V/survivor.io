@@ -84,21 +84,6 @@ const gemQuery = defineQuery([Gem, Position]);
 // Base sprite radius per texKind (0 zombie, 1 runner, 2 brute, 3 boss).
 const ENEMY_BASE_R = [16, 13, 24, 58];
 
-// Soften a tint toward white so it gently recolours real (already-coloured) sprites
-// from the art pack instead of muddying them with a full-strength multiply.
-function softenTint(c: number): number {
-  const m = 0.55;
-  const r = (c >> 16) & 0xff;
-  const g = (c >> 8) & 0xff;
-  const b = c & 0xff;
-  return (
-    ((Math.round(r + (255 - r) * m) << 16) |
-      (Math.round(g + (255 - g) * m) << 8) |
-      Math.round(b + (255 - b) * m)) >>>
-    0
-  );
-}
-
 export class Game {
   private world: IWorld = createWorld();
   private tex: Textures;
@@ -158,8 +143,7 @@ export class Game {
   private petAngle = 0;
   private petTimer = 0;
   private particles!: Particles;
-  private artRot = false;
-  private softTints: number[] = [];
+  private artUpright = false;
 
   constructor(
     private app: Application,
@@ -170,8 +154,7 @@ export class Game {
     private pet: PetDef | null,
   ) {
     this.tex = createTextures(app.renderer);
-    this.artRot = isAssetPackActive();
-    this.softTints = ENEMY_DEFS.map((d) => (d.tint != null ? softenTint(d.tint) : 0xffffff));
+    this.artUpright = isAssetPackActive();
     this.bg = new TilingSprite({
       texture: this.makeGroundTexture(),
       width: app.screen.width,
@@ -1133,7 +1116,9 @@ export class Game {
     this.addWeapon(this.character.startingWeapon);
     if (this.character.exclusiveSkill && this.character.exclusiveSkill !== this.character.startingWeapon)
       this.addWeapon(this.character.exclusiveSkill);
-    this.playerSprite.tint = this.character.tint ?? 0xffffff;
+    // Real pixel-art player shows untinted; a per-character colour multiply would
+    // discolour the sprite. (Procedural mode still tints to tell characters apart.)
+    this.playerSprite.tint = this.artUpright ? 0xffffff : (this.character.tint ?? 0xffffff);
     this.bg.tint = this.stage.tint ?? 0xffffff;
     if (this.pet) {
       this.petSprite.visible = true;
@@ -1194,8 +1179,11 @@ export class Game {
 
     this.playerSprite.position.set(p.x, p.y);
     this.playerSprite.alpha = p.invuln > 0 ? 0.55 : 1;
-    if (this.artRot) {
-      this.playerSprite.rotation = Math.atan2(this.input.facing.y, this.input.facing.x);
+    if (this.artUpright) {
+      // upright top-down art: keep level, mirror horizontally by aim direction
+      const fx = this.input.facing.x;
+      if (fx < -0.01) this.playerSprite.scale.x = -Math.abs(this.playerSprite.scale.x);
+      else if (fx > 0.01) this.playerSprite.scale.x = Math.abs(this.playerSprite.scale.x);
     }
     if (this.pet) this.petSprite.position.set(this.petPos.x, this.petPos.y);
 
@@ -1207,10 +1195,12 @@ export class Game {
       s.tint =
         Enemy.flash[e] > 0
           ? 0xff7777
-          : this.artRot
-            ? this.softTints[k]
+          : this.artUpright
+            ? 0xffffff
             : (ENEMY_DEFS[k].tint ?? 0xffffff);
-      if (this.artRot) s.rotation = Math.atan2(p.y - Position.y[e], p.x - Position.x[e]);
+      // upright top-down art: stay level, face the player by horizontal mirror
+      if (this.artUpright)
+        s.scale.x = p.x < Position.x[e] ? -Math.abs(s.scale.x) : Math.abs(s.scale.x);
     }
     for (const e of projQuery(this.world)) {
       const s = this.spr[e];

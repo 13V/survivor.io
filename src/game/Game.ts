@@ -20,6 +20,7 @@ import {
 import { Position, Velocity, Enemy, Projectile, Gem } from '../ecs/components';
 import { createTextures, type Textures } from './textures';
 import { dirRow, type SurvivorSprite, type DirAnim } from './survivorSprite';
+import { pickZombieType, type ZombieSet, type ZombieAnims } from './zombieSprite';
 import { Particles } from './particles';
 import {
   WEAPONS,
@@ -91,6 +92,11 @@ const ANIM_FPS = 9;
 const DASH_DUR = 0.32; // seconds astride the bike
 const DASH_CD = 2.2; // cooldown seconds
 const DASH_SPEED = 720; // px/s during the dash (~3x walk)
+
+// HD zombie display: cell px = radius * Z_DISPLAY_K (tuned so figures sit on their
+// collision circle); run cycle speed in frames/sec.
+const Z_DISPLAY_K = 7.2;
+const Z_FPS = 15;
 
 export class Game {
   private world: IWorld = createWorld();
@@ -168,6 +174,11 @@ export class Game {
   // 8-direction HD survivor player: faces aim, switches idle/run/hit. null = procedural.
   private survivor: SurvivorSprite | null = null;
   private survFacing = Math.PI / 2; // start facing down (south)
+  // HD zombie enemies: a shared type->anim set + the chosen type per live entity.
+  private zombies: ZombieSet | null = null;
+  private enemyZ: (ZombieAnims | undefined)[] = [];
+  // Sprites detached from dead zombies, playing their one-shot Die animation.
+  private zDeaths: { s: Sprite; za: ZombieAnims; row: number; t: number; dur: number }[] = [];
   private enemyWalk: (Texture[] | undefined)[] = [];
   private animFx: { s: Sprite; frames: Texture[]; t: number; dur: number }[] = [];
   private fxPool: Sprite[] = [];
@@ -203,6 +214,7 @@ export class Game {
 
     this.worldC.addChild(this.fxC); // hit / death FX render above the cast
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
+    this.zombies = this.tex.zombies ?? null;
     this.survivor = this.tex.survivor ?? null;
     if (this.survivor) {
       this.playerSprite.anchor.set(0.5, 0.6); // feet near the ground point
@@ -345,6 +357,44 @@ export class Game {
       this.freeSprites.push(s);
       this.spr[eid] = undefined;
       this.enemyWalk[eid] = undefined;
+      this.enemyZ[eid] = undefined;
+    }
+  }
+
+  // On death, hand a zombie's sprite to a one-shot Die animation (facing the player).
+  // Returns true if it took over the sprite; false means a plain release (pixel
+  // fallback, no Die sheet, or the on-screen death cap was hit).
+  private playZombieDeath(eid: number): boolean {
+    const s = this.spr[eid];
+    const za = this.enemyZ[eid];
+    if (!s || !za?.die || this.zDeaths.length >= 36) {
+      this.releaseSprite(eid);
+      return false;
+    }
+    const row = dirRow(Math.atan2(this.player.y - Position.y[eid], this.player.x - Position.x[eid]));
+    s.tint = 0xffffff;
+    s.alpha = 1;
+    this.zDeaths.push({ s, za, row, t: 0, dur: za.die.count / za.die.fps });
+    this.spr[eid] = undefined;
+    this.enemyZ[eid] = undefined;
+    this.enemyWalk[eid] = undefined;
+    return true;
+  }
+
+  private updateZDeaths(dt: number): void {
+    for (let i = this.zDeaths.length - 1; i >= 0; i--) {
+      const d = this.zDeaths[i];
+      d.t += dt;
+      const die = d.za.die!;
+      d.s.texture = die.frames[d.row][Math.min(die.count - 1, Math.floor(d.t * die.fps))];
+      const left = d.dur - d.t;
+      d.s.alpha = left < 0.3 ? Math.max(0, left / 0.3) : 1; // fade the corpse out at the end
+      if (d.t >= d.dur) {
+        d.s.visible = false;
+        d.s.alpha = 1;
+        this.freeSprites.push(d.s);
+        this.zDeaths.splice(i, 1);
+      }
     }
   }
 
@@ -378,6 +428,21 @@ export class Game {
     // Pick the visual: shooter enemies become the turret zombie; everything else
     // uses its texKind slot (boss = the big zombie). Walk frames, when present,
     // drive the animation in render(); the turret is sized like a runner (kind 1).
+    // HD zombie visual: a random type from this class's pool, scaled to the collision
+    // radius. The render loop faces it at the player and cycles its Run frames.
+    if (this.zombies) {
+      const za = this.zombies[pickZombieType(def.texKind)];
+      if (za) {
+        const s = this.acquireSprite(za.run.frames[2][0]); // row 2 = facing south
+        s.anchor.set(0.5, 0.62); // feet near the ground point
+        s.scale.set((def.radius * Z_DISPLAY_K) / za.cell);
+        this.spr[eid] = s;
+        this.enemyZ[eid] = za;
+        this.enemyWalk[eid] = undefined;
+        return eid;
+      }
+    }
+
     const anim = this.tex.anim;
     const useTurret = !!(anim && def.ai === 'shooter' && anim.turret.length);
     const sizeKind = useTurret ? 1 : def.texKind;
@@ -396,6 +461,7 @@ export class Game {
       else frames = anim.enemy[def.texKind] ?? undefined;
     }
     this.enemyWalk[eid] = frames;
+    this.enemyZ[eid] = undefined;
     return eid;
   }
 
@@ -888,11 +954,13 @@ export class Game {
         ENEMY_DEFS[Enemy.kind[e]].tint ?? 0xffffff,
         Enemy.boss[e] ? 48 : 12,
       );
-      const ex = this.tex.anim?.explosion;
-      if (ex?.length)
-        this.spawnAnimFx(ex, Position.x[e], Position.y[e], Enemy.boss[e] ? 2.6 : 1.05, 0.45);
+      const died = this.playZombieDeath(e); // hand the sprite to its Die animation if any
+      if (!died) {
+        const ex = this.tex.anim?.explosion;
+        if (ex?.length)
+          this.spawnAnimFx(ex, Position.x[e], Position.y[e], Enemy.boss[e] ? 2.6 : 1.05, 0.45);
+      }
       this.kills++;
-      this.releaseSprite(e);
       removeEntity(this.world, e);
     }
     this.killList.length = 0;
@@ -1230,6 +1298,13 @@ export class Game {
     this.animFx = [];
     this.animClock = 0;
     this.enemyWalk = [];
+    this.enemyZ = [];
+    for (const d of this.zDeaths) {
+      d.s.visible = false;
+      d.s.alpha = 1;
+      this.freeSprites.push(d.s);
+    }
+    this.zDeaths = [];
     this.scatterProps();
     for (const w of this.weapons) for (const b of w.blades) b.destroy();
 
@@ -1313,6 +1388,7 @@ export class Game {
     this.updateDmgNums(dt);
     this.updateFx(dt);
     this.updateAnimFx(dt);
+    this.updateZDeaths(dt);
     this.particles.update(dt);
 
     this.checkLevelUp();
@@ -1437,7 +1513,18 @@ export class Game {
     for (const e of enemyQuery(this.world)) {
       const s = this.spr[e];
       if (!s) continue;
-      s.position.set(Position.x[e], Position.y[e]);
+      const ex = Position.x[e];
+      const ey = Position.y[e];
+      s.position.set(ex, ey);
+      const za = this.enemyZ[e];
+      if (za) {
+        // HD zombie: face the player by 8-direction row, cycle Run frames (offset per
+        // entity so the horde isn't in lockstep).
+        s.tint = Enemy.flash[e] > 0 ? 0xff7777 : 0xffffff;
+        const row = dirRow(Math.atan2(p.y - ey, p.x - ex));
+        s.texture = za.run.frames[row][Math.floor(this.time * Z_FPS + e) % za.run.count];
+        continue;
+      }
       const k = Enemy.kind[e];
       s.tint =
         Enemy.flash[e] > 0

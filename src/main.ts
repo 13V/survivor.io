@@ -3,6 +3,7 @@ import { Application } from 'pixi.js';
 import { Game } from './game/Game';
 import { preloadAssetPack } from './game/assetPack';
 import { preloadSurvivor } from './game/survivorSprite';
+import { preloadZombies } from './game/zombieSprite';
 import { Hud } from './ui/hud';
 import { TitleScreen } from './ui/menu';
 import { SettingsPanel } from './ui/settings';
@@ -35,6 +36,8 @@ async function main(): Promise<void> {
   await preloadAssetPack();
   // 8-direction HD survivor player sheets (falls back to procedural hero if absent).
   await preloadSurvivor();
+  // HD zombie enemy sheets (falls back to the pixel zombie if absent).
+  await preloadZombies();
 
   registerSW();
   enableTapFullscreen();

@@ -2,18 +2,27 @@ PLAYER: HD "Survivor" character (true 8-direction top-down) from the supplied pa
 "FREE Character HD Survivor W Bike". Each animation is a 14-frame x 8-direction grid of
 128px cells, sliced at runtime into directional rows (src/game/survivorSprite.ts). The
 player faces its aim direction (nearest enemy, else movement) by picking the matching
-direction row -- no flipping. States in use: Idle, Run, TakeDamage. Die + the bike
-(RideIdle/RideRun) sheets are also loaded for upcoming death / dash states. Sheets live
-in assets/sprites/survivor/.
+direction row -- no flipping. States: Idle, Run, TakeDamage. The bike (RideRun) drives a
+short dash ability (tap the on-screen button or Space/Shift) with i-frames + cooldown.
+Sheets live in assets/sprites/survivor/.
 
-ENEMIES: animated pixel-art zombie (Run cycle) from the supplied Zombie.aseprite, used
-for all enemy kinds + boss (z0/z1/z2 frames). NOTE: the pixel enemies do not yet match
-the HD player visually -- enemy art is a pending decision (e.g. build matching HD enemies
-from the modular character creator).
+ENEMIES: HD "2D Zombie Pack 1" (same creator/format as the survivor). Each sheet is a
+15-frame x 8-direction grid; cell = width/15 (the source mixes 128px and 192px cells, so
+we derive it per sheet). The bundled sheets are downscaled to a uniform 1440x768 (96px
+cells) to keep GPU memory mobile-safe (~106MB vs ~250MB at full res); display size is
+normalized by cell, so the downscale doesn't change on-screen scale. A broad set of types
+is grouped into pools matching the four enemy classes (texKind 0=walkers, 1=fast/small,
+2=brutes, 3=bosses); each spawn picks a random type, so the horde shows lots of variety.
+Enemies face the player and cycle their Run frames; on death the sprite is handed to a
+one-shot Die animation that fades out. Sheets in assets/sprites/zombies/<Type>/{Run,Die}.png,
+sliced at runtime (src/game/zombieSprite.ts). Easy to add more types/animations -- drop
+the sheets in and extend ZOMBIE_POOLS. The source pack also ships Walk/Attack1-5/Idle/
+TakeDamage/Taunt/WakeUp/CrouchRun and Acid/Blood FX, plus ~24 more zombie types, not yet
+wired.
 
 OTHER: projectiles, blades, gems and the flat mauve ground are procedurally generated
-(src/game/textures.ts). The procedural cartoon hero remains the fallback if the survivor
-sheets are absent. Filtering: survivor = linear, zombie = nearest.
+(src/game/textures.ts). The procedural cartoon hero + pixel zombie remain as fallbacks if
+the HD sheets are absent. Filtering: HD sheets = linear, pixel zombie = nearest.
 
 History note: earlier third-party art was used during development and removed; it still
 exists in git history, so keep this repository private until the history is scrubbed if

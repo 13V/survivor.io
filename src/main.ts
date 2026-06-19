@@ -53,38 +53,37 @@ async function main(): Promise<void> {
   const hud = new Hud(root);
   const minimap = new Minimap(root);
   minimap.setVisible(false);
-  const charSelect = new CharSelect(root, Object.values(CHARACTERS));
-  const stageSelect = new StageSelect(root, STAGES);
-  const gearScreen = new GearScreen(root);
-  const petSelect = new PetSelect(root, Object.values(PETS));
+
+  // Lobby owns the pre-game UI; the pickers mount inside it and flow as sections.
+  const title = new TitleScreen(root);
+  const best = meta.getProfile().bestTimeSec;
+  if (best > 0) title.setStats(`Best time ${formatTime(best)}`);
+
+  const stageSelect = new StageSelect(title.mount, STAGES);
+  const charSelect = new CharSelect(title.mount, Object.values(CHARACTERS));
+  const petSelect = new PetSelect(title.mount, Object.values(PETS));
+  const gearScreen = new GearScreen(root); // floating loadout button + full-screen modal
 
   new SettingsPanel(root, {
     onPause: () => app.ticker.stop(),
     onResume: () => app.ticker.start(),
   });
 
-  // Title screen gates the run start.
   let started = false;
-  const title = new TitleScreen(root);
-  const best = meta.getProfile().bestTimeSec;
-  if (best > 0) title.setStats(`Best time ${formatTime(best)}`);
   title.onPlay(() => {
     if (started) return;
     started = true;
     title.hide();
-    charSelect.setVisible(false);
-    stageSelect.setVisible(false);
     gearScreen.setVisible(false);
-    petSelect.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
     new Game(app, hud, minimap, charSelect.selected, stageSelect.selected, petSelect.selected);
   });
   title.show();
-  charSelect.setVisible(true);
   stageSelect.setVisible(true);
-  gearScreen.setVisible(true);
+  charSelect.setVisible(true);
   petSelect.setVisible(true);
+  gearScreen.setVisible(true);
 }
 
 void main();

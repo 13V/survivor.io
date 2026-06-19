@@ -338,8 +338,8 @@ export class Game {
   // yellow centre lines; sidewalks border them; block interiors are concrete (where buildings
   // sit). Deterministic in (col,row) so the city is consistent as the camera streams.
   private cityCell(col: number, row: number): string {
-    const B = 14; // block period in tiles
-    const RW = 4; // road width (wider avenues so the streets read + the horde funnels)
+    const B = 9; // block period: 3-wide road + sidewalk + 4-cell building lot + sidewalk
+    const RW = 3; // road width (wider avenues so the streets read + the horde funnels)
     const cx = ((col % B) + B) % B;
     const cy = ((row % B) + B) % B;
     const onColRoad = cx < RW;
@@ -512,9 +512,9 @@ export class Game {
 
     // --- structured city: buildings fill the block interiors; roads stay clear so the
     // horde funnels down the streets, vehicles sit on the asphalt, clutter on sidewalks. ---
-    const B = 14;
+    const B = 9;
     const TILE = ISO_TILE;
-    const NB = 3; // city blocks in each direction around spawn
+    const NB = 5; // city blocks in each direction around spawn
     const span = NB * B;
     const addAt = (tex: Texture, wx: number, wy: number, anchorY: number, sc: number): Sprite | null => {
       if (wx * wx + wy * wy < clear * clear) return null;
@@ -535,15 +535,11 @@ export class Game {
     if (buildings.length) {
       for (let bc = -NB; bc <= NB; bc++) {
         for (let br = -NB; br <= NB; br++) {
-          for (let gx = 5; gx <= 12; gx += 3) {
-            for (let gy = 5; gy <= 12; gy += 3) {
-              const cc = bc * B + gx;
-              const rr = br * B + gy;
-              // exact grid scale (1.0) so every building aligns to the iso ground — no
-              // random scaling, which is what made them look slapped together.
-              addAt(buildings[(Math.random() * buildings.length) | 0], cc * TILE, rr * TILE, 0.9, 1.0);
-            }
-          }
+          // ONE solid building per block, centred in the 4-cell lot (cells 4..7), no overlap
+          // and exact grid scale so each reads as a clean rectangular box with streets around it.
+          const cc = bc * B + 5.5;
+          const rr = br * B + 5.5;
+          addAt(buildings[(Math.random() * buildings.length) | 0], cc * TILE, rr * TILE, 0.86, 1.0);
         }
       }
     }

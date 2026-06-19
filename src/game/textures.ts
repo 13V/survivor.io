@@ -10,7 +10,7 @@ import type { AnimPack } from './assetPack';
 import { buildSurvivor } from './survivorSprite';
 import type { SurvivorSprite } from './survivorSprite';
 import { buildZombies } from './zombieSprite';
-import type { ZombieSet } from './zombieSprite';
+import type { ZombieAssets } from './zombieSprite';
 
 export interface Textures {
   player: Texture;
@@ -23,8 +23,8 @@ export interface Textures {
   anim?: AnimPack | null;
   // 8-direction HD survivor player sprite (null if its sheets weren't loaded).
   survivor?: SurvivorSprite | null;
-  // 8-direction HD zombie enemy set, keyed by type id (null if not loaded).
-  zombies?: ZombieSet | null;
+  // HD zombie enemy set (types + Acid/Blood FX), null if not loaded.
+  zombies?: ZombieAssets | null;
 }
 
 // Bake a Graphics into a texture and clean it up. All builders funnel through here.

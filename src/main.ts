@@ -8,8 +8,9 @@ import { Minimap } from './ui/minimap';
 import { audio } from './audio/sfx';
 import { meta, formatTime } from './meta/save';
 import { registerSW, enableTapFullscreen } from './pwa';
-import { CHARACTERS } from './game/data';
+import { CHARACTERS, STAGES } from './game/data';
 import { CharSelect } from './ui/charselect';
+import { StageSelect } from './ui/stageselect';
 
 async function main(): Promise<void> {
   const app = new Application();
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
   const minimap = new Minimap(root);
   minimap.setVisible(false);
   const charSelect = new CharSelect(root, Object.values(CHARACTERS));
+  const stageSelect = new StageSelect(root, STAGES);
 
   new SettingsPanel(root, {
     onPause: () => app.ticker.stop(),
@@ -56,12 +58,14 @@ async function main(): Promise<void> {
     started = true;
     title.hide();
     charSelect.setVisible(false);
+    stageSelect.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
-    new Game(app, hud, minimap, charSelect.selected);
+    new Game(app, hud, minimap, charSelect.selected, stageSelect.selected);
   });
   title.show();
   charSelect.setVisible(true);
+  stageSelect.setVisible(true);
 }
 
 void main();

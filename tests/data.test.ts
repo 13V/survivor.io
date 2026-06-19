@@ -4,6 +4,7 @@ import {
   PASSIVES,
   ENEMY_DEFS,
   CHARACTERS,
+  STAGES,
   baseMods,
   type Mods,
 } from '../src/game/data';
@@ -144,6 +145,18 @@ describe('CHARACTERS', () => {
     for (const c of all) {
       expect(WEAPONS[c.startingWeapon], `${c.id} startingWeapon`).toBeDefined();
       if (c.exclusiveSkill) expect(WEAPONS[c.exclusiveSkill], `${c.id} exclusiveSkill`).toBeDefined();
+    }
+  });
+});
+
+describe('STAGES', () => {
+  it('each stage has a sane config', () => {
+    expect(STAGES.length).toBeGreaterThan(0);
+    for (const s of STAGES) {
+      expect(s.spawnBase).toBeGreaterThan(0);
+      expect(s.spawnRamp).toBeGreaterThanOrEqual(0);
+      expect(s.enemyHpMul).toBeGreaterThan(0);
+      expect(s.enemyDmgMul).toBeGreaterThan(0);
     }
   });
 });

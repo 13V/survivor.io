@@ -31,6 +31,7 @@ import {
   type WeaponContext,
   type WeaponRuntime,
   type CharacterDef,
+  type StageDef,
 } from './data';
 import { behaviors } from './behaviors';
 import { Input } from '../core/input';
@@ -138,6 +139,7 @@ export class Game {
     private hud: Hud,
     private minimap: Minimap,
     private character: CharacterDef,
+    private stage: StageDef,
   ) {
     this.tex = createTextures(app.renderer);
     this.bg = new TilingSprite({
@@ -282,9 +284,9 @@ export class Game {
     Position.x[eid] = x;
     Position.y[eid] = y;
     Enemy.speed[eid] = def.speed;
-    Enemy.hp[eid] = def.hp * dmul;
-    Enemy.maxHp[eid] = def.hp * dmul;
-    Enemy.dmg[eid] = def.dmg * dmul;
+    Enemy.hp[eid] = def.hp * dmul * this.stage.enemyHpMul;
+    Enemy.maxHp[eid] = def.hp * dmul * this.stage.enemyHpMul;
+    Enemy.dmg[eid] = def.dmg * dmul * this.stage.enemyDmgMul;
     Enemy.radius[eid] = def.radius;
     Enemy.kind[eid] = kind;
     Enemy.xp[eid] = def.xp;
@@ -466,7 +468,7 @@ export class Game {
 
   private spawnDirector(dt: number): void {
     if (this.bossSpawned) return;
-    const rate = 2 + this.time * 0.2;
+    const rate = this.stage.spawnBase + this.time * this.stage.spawnRamp;
     this.spawnAcc += dt * rate;
     let count = enemyQuery(this.world).length;
     const cap = 700;
@@ -505,7 +507,7 @@ export class Game {
   }
 
   private bossCheck(): void {
-    if (this.bossSpawned || this.time < C.BOSS_TIME) return;
+    if (this.bossSpawned || this.stage.bossTime <= 0 || this.time < this.stage.bossTime) return;
     this.bossSpawned = true;
     // board-wipe: clear all normal enemies (see docs/04)
     for (const e of enemyQuery(this.world).slice()) {
@@ -921,6 +923,7 @@ export class Game {
     if (this.character.exclusiveSkill && this.character.exclusiveSkill !== this.character.startingWeapon)
       this.addWeapon(this.character.exclusiveSkill);
     this.playerSprite.tint = this.character.tint ?? 0xffffff;
+    this.bg.tint = this.stage.tint ?? 0xffffff;
     this.recompute();
     this.hud.hideEnd();
     this.hud.hideLevelUp();

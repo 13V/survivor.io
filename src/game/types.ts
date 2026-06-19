@@ -135,3 +135,17 @@ export interface CharacterDef {
   exclusiveSkill?: string; // weapon id always granted at run start (occupies a slot)
   mods?: Partial<Record<keyof Mods, number>>; // additive deltas onto baseMods
 }
+
+// A stage/mode is a config of the one run engine (docs/05).
+export interface StageDef {
+  id: string;
+  name: string;
+  desc: string;
+  icon: string;
+  bossTime: number; // seconds until the boss; <= 0 means endless (no boss)
+  spawnBase: number; // enemies/sec at t=0
+  spawnRamp: number; // additional enemies/sec per second elapsed
+  enemyHpMul: number;
+  enemyDmgMul: number;
+  tint?: number; // background tint
+}

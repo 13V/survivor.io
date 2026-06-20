@@ -103,3 +103,52 @@ describe('flamethrower (projectile cone)', () => {
     expect(distinct.size).toBeGreaterThan(1);
   });
 });
+
+describe('whirl behavior', () => {
+  it('damages AND shoves enemies in the orbit band outward', () => {
+    // orbit radius 120, band = radius(8)+24 = 32 → hits enemies with d in (88,152)
+    const { ctx, calls } = makeCtx({ enemies: [{ x: 120, y: 0 }] });
+    behaviors.whirl.fire!(ctx, inst(), { ...s, range: 120, radius: 8, knock: 200 });
+    expect(calls.damage.length).toBe(1);
+    expect(calls.knockback.length).toBe(1);
+    expect(calls.knockback[0].nx).toBeGreaterThan(0); // pushed outward (+x), unlike blackhole's pull
+  });
+  it('advances its spin angle on update', () => {
+    const { ctx } = makeCtx({});
+    const w = inst();
+    behaviors.whirl.update!(ctx, w, { ...s, spin: 3 }, 0.5);
+    expect(w.angle).toBeCloseTo(1.5);
+  });
+});
+
+describe('lance behavior', () => {
+  it('damages enemies along the aimed beam, skipping ones off-axis', () => {
+    const { ctx, calls } = makeCtx({
+      aim: { x: 1, y: 0 },
+      enemies: [
+        { x: 200, y: 0 }, // on the beam → hit
+        { x: 200, y: 400 }, // far off to the side → miss
+      ],
+    });
+    behaviors.lance.fire!(ctx, inst(), { ...s, count: 1, range: 500, beamWidth: 20 });
+    expect(calls.damage).toEqual([0]);
+  });
+});
+
+describe('scatter behavior', () => {
+  it('fires `count` pellets toward the aim', () => {
+    const { ctx, calls } = makeCtx({ aim: { x: 1, y: 0 } });
+    behaviors.scatter.fire!(ctx, inst(), { ...s, count: 10, spreadDeg: 26 });
+    expect(calls.projectile.length).toBe(10);
+  });
+});
+
+describe('spiral behavior', () => {
+  it('emits `count` shots and rotates the emission angle each fire', () => {
+    const { ctx, calls } = makeCtx({});
+    const w = inst();
+    behaviors.spiral.fire!(ctx, w, { ...s, count: 4, turn: 40 });
+    expect(calls.projectile.length).toBe(4);
+    expect(w.angle).toBeGreaterThan(0); // angle advanced for the next fire
+  });
+});

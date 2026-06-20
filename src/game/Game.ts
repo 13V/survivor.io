@@ -157,6 +157,20 @@ const PACK_SPREAD = 95; // cluster radius around the pack's head
 const REROLLS_PER_RUN = 3;
 const BANISHES_PER_RUN = 3;
 
+// ---- Combo / kill-streak dopamine -----------------------------------------
+// Kills inside a short rolling window build a streak; crossing a tier fires a
+// big banner callout + a burst of juice. Pure feedback (no power gain), so it
+// can't unbalance a run. Reset each run.
+const COMBO_WINDOW = 2.6; // seconds a streak survives without a fresh kill
+const COMBO_TIERS: { at: number; label: string; color: number; flash: string }[] = [
+  { at: 10, label: 'RAMPAGE', color: 0x7cfc00, flash: '#7cfc00' },
+  { at: 25, label: 'CARNAGE', color: 0xffd24a, flash: '#ffd24a' },
+  { at: 50, label: 'SLAUGHTER', color: 0xff9a3c, flash: '#ff9a3c' },
+  { at: 100, label: 'MASSACRE', color: 0xff4d6e, flash: '#ff4d6e' },
+  { at: 200, label: 'ANNIHILATION', color: 0xc77dff, flash: '#c77dff' },
+  { at: 350, label: 'GODLIKE', color: 0x00e5ff, flash: '#00e5ff' },
+];
+
 
 export class Game {
   private world: IWorld = createWorld();
@@ -215,6 +229,11 @@ export class Game {
   private banished = new Set<string>();
   private draftLockedId: string | null = null;
   private draftOptions: LevelOption[] = [];
+  // Live kill-streak state (see COMBO_TIERS).
+  private combo = 0;
+  private comboTimer = 0;
+  private comboTier = 0;
+  private comboBest = 0;
   private xp = 0;
   private xpNext = C.xpForLevel(1);
   private spawnAcc = 0;
@@ -772,6 +791,25 @@ export class Game {
 
   private addShake(n: number): void {
     this.shakeMag = Math.min(24, Math.max(this.shakeMag, n));
+  }
+
+  // A kill landed: extend the streak and, when it crosses a new tier, fire a
+  // banner callout plus a punch of flash/shake/particles.
+  private addCombo(x: number, y: number): void {
+    this.combo++;
+    this.comboTimer = COMBO_WINDOW;
+    if (this.combo > this.comboBest) this.comboBest = this.combo;
+    let tier = 0;
+    for (const t of COMBO_TIERS) if (this.combo >= t.at) tier++;
+    if (tier > this.comboTier) {
+      this.comboTier = tier;
+      const t = COMBO_TIERS[tier - 1];
+      this.hud.banner(`${t.label}  ×${this.combo}`, tier);
+      this.flash(t.flash, 0.16);
+      this.addShake(6 + tier * 2);
+      this.particles.ring(x, y, t.color, 110);
+      audio.levelUp();
+    }
   }
 
   private flash(color = '#ffffff', a = 0.5): void {
@@ -1744,6 +1782,7 @@ export class Game {
         this.decalC.addChild(ds);
       }
       this.kills++;
+      this.addCombo(Position.x[e], Position.y[e]);
       removeEntity(this.world, e);
     }
     this.killList.length = 0;
@@ -2226,6 +2265,10 @@ export class Game {
     if (this.dashBtn) this.dashBtn.style.display = 'flex';
     this.time = 0;
     this.kills = 0;
+    this.combo = 0;
+    this.comboTimer = 0;
+    this.comboTier = 0;
+    this.comboBest = 0;
     this.runStats = { crits: 0, eliteKills: 0, bossKills: 0, evolutions: 0, tookDamage: false };
     this.rerolls = REROLLS_PER_RUN;
     this.banishes = BANISHES_PER_RUN;
@@ -2280,6 +2323,13 @@ export class Game {
     this.animClock += dt;
     this.animFrame = (this.animClock * ANIM_FPS) | 0;
     this.shakeMag = Math.max(0, this.shakeMag - 50 * dt);
+    if (this.combo > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) {
+        this.combo = 0;
+        this.comboTier = 0;
+      }
+    }
     this.input.update();
     this.movePlayer(dt);
     this.spawnDirector(dt);
@@ -2594,6 +2644,7 @@ export class Game {
       joy: this.input.joy,
       boss,
     });
+    this.hud.setCombo(this.combo, this.comboTimer / COMBO_WINDOW, this.comboTier);
 
     // minimap snapshot (cheap: sample up to ~60 enemies)
     const ents = enemyQuery(this.world);

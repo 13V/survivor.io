@@ -1,6 +1,9 @@
 // DOM/CSS HUD overlay (kept out of the Pixi canvas for crisp text + easy layout).
 import type { JoyState } from '../core/input';
 
+// Combo meter colours, indexed by streak tier (0 = warming up → 6 = GODLIKE).
+const COMBO_COLORS = ['#9be7ff', '#7cfc00', '#ffd24a', '#ff9a3c', '#ff4d6e', '#c77dff', '#00e5ff'];
+
 export interface LevelOption {
   kind: 'weapon-new' | 'weapon-up' | 'passive-new' | 'passive-up' | 'heal';
   id?: string;
@@ -57,6 +60,10 @@ export class Hud {
   private bossBar: HTMLElement;
   private joy: HTMLElement;
   private joyKnob: HTMLElement;
+  private combo: HTMLElement;
+  private comboNum: HTMLElement;
+  private comboBarF: HTMLElement;
+  private bannerWrap: HTMLElement;
   private levelup: HTMLElement;
   private cards: HTMLElement;
   private lvlActions: HTMLElement;
@@ -79,6 +86,8 @@ export class Hud {
         <div class="skills"></div>
         <div class="hpwrap"><div class="hpbar"></div><div class="hptext"></div></div>
       </div>
+      <div class="combo" hidden><span class="combo-num"></span><span class="combo-bar"><i></i></span></div>
+      <div class="banner-wrap"></div>
       <div class="joystick" hidden><div class="joyknob"></div></div>
       <div class="overlay levelup" data-ui hidden>
         <h2>LEVEL UP</h2>
@@ -106,6 +115,10 @@ export class Hud {
     this.bossBar = q('.bossbar');
     this.joy = q('.joystick');
     this.joyKnob = q('.joyknob');
+    this.combo = q('.combo');
+    this.comboNum = q('.combo-num');
+    this.comboBarF = q('.combo-bar i');
+    this.bannerWrap = q('.banner-wrap');
     this.levelup = q('.levelup');
     this.cards = q('.cards');
     this.lvlActions = q('.lvl-actions');
@@ -146,6 +159,29 @@ export class Hud {
     } else {
       this.joy.hidden = true;
     }
+  }
+
+  /** Drive the live kill-streak meter. `frac` is the remaining streak time (0..1). */
+  setCombo(count: number, frac: number, tier: number): void {
+    if (count < 5) {
+      if (!this.combo.hidden) this.combo.hidden = true;
+      return;
+    }
+    this.combo.hidden = false;
+    this.comboNum.textContent = `${count}× COMBO`;
+    this.comboBarF.style.width = `${Math.max(0, Math.min(1, frac)) * 100}%`;
+    const col = COMBO_COLORS[Math.min(tier, COMBO_COLORS.length - 1)];
+    this.comboNum.style.color = col;
+    this.comboBarF.style.background = col;
+  }
+
+  /** Pop a big centre-screen callout (e.g. "RAMPAGE ×25"); auto-removes. */
+  banner(text: string, tier: number): void {
+    const b = document.createElement('div');
+    b.className = `banner bt${Math.min(tier, 6)}`;
+    b.textContent = text;
+    this.bannerWrap.appendChild(b);
+    window.setTimeout(() => b.remove(), 1500);
   }
 
   showLevelUp(view: LevelUpView, h: LevelUpHandlers): void {

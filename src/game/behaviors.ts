@@ -171,4 +171,94 @@ export const behaviors: Record<string, BehaviorHandler> = {
       }
     },
   },
+
+  // Orbiting blades that ALSO knock enemies outward (orbit + shove). Set orbit:true.
+  whirl: {
+    update(ctx, inst, s, dt) {
+      inst.angle += (s.spin ?? 3) * dt;
+    },
+    fire(ctx, inst, s) {
+      const orbitR = s.range;
+      const band = s.radius + 24;
+      ctx.forEachInRadius(ctx.px, ctx.py, orbitR + band, (eid, dx, dy, d) => {
+        if (d > orbitR - band && d < orbitR + band) {
+          ctx.damage(eid, s.dmg * ctx.mods.dmgMul, ctx.critRoll());
+          const m = d || 1;
+          ctx.knockback(eid, dx / m, dy / m, s.knock);
+        }
+      });
+    },
+  },
+
+  // A focused beam (or a small fan of parallel beams) fired at the nearest enemy.
+  lance: {
+    fire(ctx, inst, s) {
+      const dir = ctx.aimNearest(s.range) ?? { x: ctx.fx, y: ctx.fy };
+      const baseA = Math.atan2(dir.y, dir.x);
+      const beams = Math.max(1, s.count);
+      const len = s.range;
+      const w = s.beamWidth ?? 20;
+      const fan = 7 * DEG;
+      for (let b = 0; b < beams; b++) {
+        const a = baseA + (b - (beams - 1) / 2) * fan;
+        const dx = Math.cos(a);
+        const dy = Math.sin(a);
+        ctx.forEachInRadius(ctx.px, ctx.py, len, (eid, ex, ey) => {
+          const along = ex * dx + ey * dy;
+          if (along < 0 || along > len) return;
+          const perp = Math.abs(ex * -dy + ey * dx);
+          if (perp < w) ctx.damage(eid, s.dmg * ctx.mods.dmgMul, ctx.critRoll());
+        });
+        ctx.spawnZap(ctx.px, ctx.py, ctx.px + dx * len, ctx.py + dy * len, inst.def.color);
+      }
+    },
+  },
+
+  // Shotgun: a wide cone of jittered short-range pellets toward the nearest enemy.
+  scatter: {
+    fire(ctx, inst, s) {
+      const dir = ctx.aimNearest(s.range) ?? { x: ctx.fx, y: ctx.fy };
+      const baseA = Math.atan2(dir.y, dir.x);
+      const n = Math.max(1, s.count);
+      const spread = (s.spreadDeg ?? 24) * DEG;
+      for (let i = 0; i < n; i++) {
+        const a = baseA + (Math.random() - 0.5) * 2 * spread;
+        const v = s.speed * (0.8 + Math.random() * 0.4);
+        ctx.spawnProjectile(
+          ctx.px,
+          ctx.py,
+          Math.cos(a) * v,
+          Math.sin(a) * v,
+          s.dmg * ctx.mods.dmgMul,
+          s.pierce,
+          ctx.critRoll(),
+          s.radius,
+          inst.def.color,
+        );
+      }
+    },
+  },
+
+  // An advancing spiral stream: emit `count` evenly-spaced shots, then rotate the
+  // emission angle by `turn` degrees so successive fires trace a spiral.
+  spiral: {
+    fire(ctx, inst, s) {
+      const n = Math.max(1, s.count);
+      for (let i = 0; i < n; i++) {
+        const a = inst.angle + (i / n) * Math.PI * 2;
+        ctx.spawnProjectile(
+          ctx.px,
+          ctx.py,
+          Math.cos(a) * s.speed,
+          Math.sin(a) * s.speed,
+          s.dmg * ctx.mods.dmgMul,
+          s.pierce,
+          ctx.critRoll(),
+          s.radius,
+          inst.def.color,
+        );
+      }
+      inst.angle += (s.turn ?? 40) * DEG;
+    },
+  },
 };

@@ -553,6 +553,87 @@ canvas {
   opacity: 0.6;
 }
 
+/* ---- Combo / kill-streak feedback --------------------------------------- */
+.combo {
+  position: fixed;
+  left: 50%;
+  top: 58px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  z-index: 25;
+}
+.combo-num {
+  font-weight: 900;
+  font-size: 20px;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.7), 0 0 12px currentColor;
+}
+.combo-bar {
+  width: 124px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+.combo-bar i {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 3px;
+  transition: width 0.1s linear;
+}
+
+.banner-wrap {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 33%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 30;
+}
+.banner {
+  font-weight: 900;
+  font-size: 46px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #ffd24a;
+  text-shadow: 0 3px 0 rgba(0, 0, 0, 0.55), 0 0 26px currentColor;
+  animation: banner-pop 1.5s cubic-bezier(0.18, 0.9, 0.3, 1) both;
+}
+.banner.bt1 { color: #7cfc00; }
+.banner.bt2 { color: #ffd24a; }
+.banner.bt3 { color: #ff9a3c; }
+.banner.bt4 { color: #ff4d6e; }
+.banner.bt5 { color: #c77dff; }
+.banner.bt6 { color: #00e5ff; }
+@keyframes banner-pop {
+  0% { opacity: 0; transform: scale(0.4) rotate(-6deg); }
+  14% { opacity: 1; transform: scale(1.16) rotate(-2deg); }
+  26% { transform: scale(1) rotate(0deg); }
+  72% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.08) translateY(-26px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .banner {
+    animation: banner-fade 1.5s ease both;
+  }
+  @keyframes banner-fade {
+    0% { opacity: 0; }
+    12% { opacity: 1; }
+    75% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+}
+
 @keyframes card-in {
   from {
     opacity: 0;

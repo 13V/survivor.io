@@ -28,6 +28,7 @@ export const Projectile = defineComponent({
   pierce: Types.i16,
   crit: Types.ui8,
   enemy: Types.ui8, // 1 = enemy-owned hazard (damages the player), 0 = player projectile
+  homing: Types.ui8, // 1 = steer toward the nearest enemy each step (seeker missiles)
 });
 
 export const Gem = defineComponent({

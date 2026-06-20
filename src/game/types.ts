@@ -92,6 +92,18 @@ export interface WeaponContext {
     radius: number,
     color?: number,
   ): void;
+  /** Like spawnProjectile, but the projectile steers toward the nearest enemy (seeker). */
+  spawnHoming(
+    x: number,
+    y: number,
+    vx: number,
+    vy: number,
+    dmg: number,
+    pierce: number,
+    crit: boolean,
+    radius: number,
+    color?: number,
+  ): void;
   spawnZap(x1: number, y1: number, x2: number, y2: number, color: number): void;
   spawnRing(x: number, y: number, r: number, color: number): void;
 }

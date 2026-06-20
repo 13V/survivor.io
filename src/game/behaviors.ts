@@ -109,6 +109,47 @@ export const behaviors: Record<string, BehaviorHandler> = {
     },
   },
 
+  // Seeker missiles: a small spread of homing projectiles toward the nearest enemy.
+  homing: {
+    fire(ctx, inst, s) {
+      const dir = ctx.aimNearest(s.range) ?? { x: ctx.fx, y: ctx.fy };
+      const baseA = Math.atan2(dir.y, dir.x);
+      const n = Math.max(1, s.count);
+      const spread = (s.spreadDeg ?? 22) * DEG;
+      for (let i = 0; i < n; i++) {
+        const a = baseA + (i - (n - 1) / 2) * spread;
+        ctx.spawnHoming(
+          ctx.px,
+          ctx.py,
+          Math.cos(a) * s.speed,
+          Math.sin(a) * s.speed,
+          s.dmg * ctx.mods.dmgMul,
+          s.pierce,
+          ctx.critRoll(),
+          s.radius,
+          inst.def.color,
+        );
+      }
+    },
+  },
+
+  // Singularity: lob a vortex into the horde ahead that sucks enemies inward and
+  // crushes them. Placed at `placeDist` toward the nearest enemy so it doesn't pull
+  // the swarm onto the player.
+  blackhole: {
+    fire(ctx, inst, s) {
+      const dir = ctx.aimNearest(s.range + (s.placeDist ?? 160)) ?? { x: ctx.fx, y: ctx.fy };
+      const cx = ctx.px + dir.x * (s.placeDist ?? 160);
+      const cy = ctx.py + dir.y * (s.placeDist ?? 160);
+      ctx.forEachInRadius(cx, cy, s.range, (eid, dx, dy, d) => {
+        ctx.damage(eid, s.dmg * ctx.mods.dmgMul, ctx.critRoll());
+        const m = d || 1;
+        ctx.knockback(eid, -dx / m, -dy / m, s.knock); // pull toward the vortex centre
+      });
+      ctx.spawnRing(cx, cy, s.range, inst.def.color);
+    },
+  },
+
   // N beams radiating from the player (optionally rotating); line-shaped damage.
   beam: {
     fire(ctx, inst, s) {

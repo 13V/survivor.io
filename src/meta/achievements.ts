@@ -253,6 +253,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     category: 'challenge',
     stat: 'bossKills',
     goal: 10,
+    unlock: { kind: 'weapon', id: 'seeker' },
     coins: 400,
   },
   {
@@ -273,6 +274,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     category: 'mastery',
     stat: 'bestLevel',
     goal: 25,
+    unlock: { kind: 'weapon', id: 'singularity' },
     coins: 300,
   },
   {
@@ -283,6 +285,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     category: 'mastery',
     stat: 'evolutions',
     goal: 15,
+    unlock: { kind: 'weapon', id: 'flamethrower' },
     coins: 400,
   },
   {

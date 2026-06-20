@@ -818,6 +818,8 @@ export class Game {
       },
       spawnProjectile: (x, y, vx, vy, dmg, pierce, crit, radius, color) =>
         self.spawnProjectile(x, y, vx, vy, dmg, pierce, crit, radius, color),
+      spawnHoming: (x, y, vx, vy, dmg, pierce, crit, radius, color) =>
+        self.spawnProjectile(x, y, vx, vy, dmg, pierce, crit, radius, color, true),
       spawnZap: (x1, y1, x2, y2, color) => self.spawnZap(x1, y1, x2, y2, color),
       spawnRing: (x, y, r, color) => self.spawnNovaRing(x, y, r, color),
     };
@@ -978,6 +980,7 @@ export class Game {
     crit: boolean,
     radius: number,
     color = 0xffffff,
+    homing = false,
   ): void {
     const eid = addEntity(this.world);
     addComponent(this.world, Position, eid);
@@ -988,11 +991,12 @@ export class Game {
     Velocity.x[eid] = vx;
     Velocity.y[eid] = vy;
     Projectile.dmg[eid] = dmg;
-    Projectile.life[eid] = 1.4;
+    Projectile.life[eid] = homing ? 2.4 : 1.4; // seekers live longer to chase
     Projectile.radius[eid] = radius;
     Projectile.pierce[eid] = pierce;
     Projectile.crit[eid] = crit ? 1 : 0;
     Projectile.enemy[eid] = 0;
+    Projectile.homing[eid] = homing ? 1 : 0;
     const s = this.acquireSprite(this.tex.projectile);
     s.rotation = Math.atan2(vy, vx);
     s.tint = color;
@@ -1591,7 +1595,26 @@ export class Game {
   }
 
   private updateProjectiles(dt: number): void {
+    const TURN = 7; // seeker turn rate (rad/s)
     for (const e of projQuery(this.world)) {
+      if (Projectile.homing[e]) {
+        const t = this.nearestEnemy(Position.x[e], Position.y[e], 520);
+        if (t >= 0) {
+          const vx = Velocity.x[e];
+          const vy = Velocity.y[e];
+          const spd = Math.hypot(vx, vy) || 1;
+          const cur = Math.atan2(vy, vx);
+          let diff = Math.atan2(Position.y[t] - Position.y[e], Position.x[t] - Position.x[e]) - cur;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          const turn = Math.max(-TURN * dt, Math.min(TURN * dt, diff));
+          const na = cur + turn;
+          Velocity.x[e] = Math.cos(na) * spd;
+          Velocity.y[e] = Math.sin(na) * spd;
+          const s = this.spr[e];
+          if (s) s.rotation = na;
+        }
+      }
       Position.x[e] += Velocity.x[e] * dt;
       Position.y[e] += Velocity.y[e] * dt;
       Projectile.life[e] -= dt;

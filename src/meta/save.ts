@@ -8,6 +8,8 @@
 // Self-contained: zero dependencies, pure TS. See the INTEGRATION notes at the
 // bottom of this file for how Game.ts and the title/end screen hook in.
 
+import { ACHIEVEMENTS, STARTER_WEAPONS, type AchievementDef } from './achievements';
+
 /** Persisted player profile. Bump `CURRENT_VERSION` when this shape changes. */
 export interface Profile {
   version: number;
@@ -16,19 +18,35 @@ export interface Profile {
   totalRuns: number;
   coins: number;
   equipped: Record<string, string>; // slot -> gear id
+  unlocked: string[]; // weapon ids earned via achievements (starters are implicit)
+  done: string[]; // completed achievement ids
+  stats: Record<string, number>; // lifetime counters that drive achievement progress
 }
 
-/** Stats reported at the end of a single run. */
+/** Stats reported at the end of a single run (drives achievement progress). */
 export interface RunStats {
   timeSec: number;
   kills: number;
   level: number;
+  crits?: number;
+  eliteKills?: number;
+  bossKills?: number;
+  evolutions?: number;
+  won?: boolean;
+  noHit?: boolean; // true if the player took zero damage the whole run
+}
+
+/** Result of committing a run: what newly completed / unlocked, for the reveal. */
+export interface RunResult {
+  profile: Profile;
+  newAchievements: AchievementDef[];
+  newWeapons: string[];
 }
 
 type ChangeListener = (profile: Profile) => void;
 
 const STORAGE_KEY = 'survivor.io:profile';
-const CURRENT_VERSION = 2;
+const CURRENT_VERSION = 3;
 
 /** A fresh, zeroed profile at the current schema version. */
 function defaultProfile(): Profile {
@@ -39,6 +57,9 @@ function defaultProfile(): Profile {
     totalRuns: 0,
     coins: 0,
     equipped: {},
+    unlocked: [],
+    done: [],
+    stats: {},
   };
 }
 
@@ -65,7 +86,16 @@ function migrate(raw: unknown): Profile {
   const base = defaultProfile();
   if (!raw || typeof raw !== 'object') return base;
   const r = raw as Record<string, unknown>;
-  // Future migrations key off r.version here. For v1 we just coerce fields.
+  // Future migrations key off r.version here. Missing fields (older saves) fall
+  // back to defaults, so v2 profiles gain empty unlock/achievement state.
+  const strArr = (v: unknown): string[] =>
+    Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+  const numMap = (v: unknown): Record<string, number> => {
+    const out: Record<string, number> = {};
+    if (v && typeof v === 'object')
+      for (const [k, val] of Object.entries(v as Record<string, unknown>)) out[k] = safeNum(val, 0);
+    return out;
+  };
   return {
     version: CURRENT_VERSION,
     bestTimeSec: safeNum(r.bestTimeSec, base.bestTimeSec),
@@ -76,6 +106,9 @@ function migrate(raw: unknown): Profile {
       r.equipped && typeof r.equipped === 'object'
         ? { ...(r.equipped as Record<string, string>) }
         : {},
+    unlocked: strArr(r.unlocked),
+    done: strArr(r.done),
+    stats: numMap(r.stats),
   };
 }
 
@@ -93,6 +126,9 @@ class Meta {
 
   constructor() {
     this.profile = this.load();
+    // Grant any achievements an existing/migrated profile already qualifies for
+    // (e.g. a returning player with thousands of lifetime kills).
+    if (this.applyAchievements().newAchievements.length) this.save();
   }
 
   // ---- persistence ---------------------------------------------------------
@@ -150,23 +186,123 @@ class Meta {
   }
 
   /**
-   * Record the result of a finished run: updates best time, lifetime kills and
-   * run count, and awards coins (1 per kill). Safe to call once per `end()`.
+   * Record the result of a finished run: folds the run's stats into the lifetime
+   * counters, awards coins (1 per kill), then evaluates achievements — unlocking
+   * any newly-earned weapons. Returns what newly completed, for the end-screen
+   * reveal. Safe to call once per `end()`.
    */
-  recordRun(stats: RunStats): Profile {
+  recordRun(stats: RunStats): RunResult {
     const timeSec = safeNum(stats?.timeSec);
     const kills = safeInt(stats?.kills);
-    // `level` isn't persisted in v1's profile shape, but is accepted for the
-    // caller's convenience and reserved for future coin/bonus formulas.
+    const level = safeInt(stats?.level);
+    const p = this.profile;
+    p.totalRuns += 1;
+    p.totalKills += kills;
+    if (timeSec > p.bestTimeSec) p.bestTimeSec = timeSec;
+    p.coins += kills; // coins earned = kills
 
-    this.profile.totalRuns += 1;
-    this.profile.totalKills += kills;
-    if (timeSec > this.profile.bestTimeSec) this.profile.bestTimeSec = timeSec;
-    this.profile.coins += kills; // coins += kills
+    const add = (k: string, n: number): void => {
+      if (n) p.stats[k] = (p.stats[k] ?? 0) + n;
+    };
+    const max = (k: string, n: number): void => {
+      p.stats[k] = Math.max(p.stats[k] ?? 0, n);
+    };
+    add('crits', safeInt(stats?.crits));
+    add('eliteKills', safeInt(stats?.eliteKills));
+    add('bossKills', safeInt(stats?.bossKills));
+    add('evolutions', safeInt(stats?.evolutions));
+    add('wins', stats?.won ? 1 : 0);
+    add('coinsEarned', kills);
+    max('bestLevel', level);
+    max('bestKillsRun', kills);
+    max('noHitWin', stats?.won && stats?.noHit ? 1 : 0);
 
+    const { newAchievements, newWeapons } = this.applyAchievements();
     this.save();
     this.notify();
-    return this.getProfile();
+    return { profile: this.getProfile(), newAchievements, newWeapons };
+  }
+
+  // ---- achievements & unlocks ----------------------------------------------
+
+  /** Current lifetime value backing an achievement's progress. */
+  statValue(key: string): number {
+    switch (key) {
+      case 'kills':
+        return this.profile.totalKills;
+      case 'runs':
+        return this.profile.totalRuns;
+      case 'bestTimeSec':
+        return this.profile.bestTimeSec;
+      case 'weaponsUnlocked':
+        return this.unlockedWeaponCount();
+      default:
+        return this.profile.stats[key] ?? 0;
+    }
+  }
+
+  private unlockedWeaponCount(): number {
+    const set = new Set(STARTER_WEAPONS);
+    for (const id of this.profile.unlocked) set.add(id);
+    return set.size;
+  }
+
+  /** Has this weapon been earned (or is it a starter)? */
+  isWeaponUnlocked(id: string): boolean {
+    return STARTER_WEAPONS.includes(id) || this.profile.unlocked.includes(id);
+  }
+
+  /** Every weapon id currently available in the draft pool. */
+  getUnlockedWeapons(): string[] {
+    return Array.from(new Set([...STARTER_WEAPONS, ...this.profile.unlocked]));
+  }
+
+  /** Progress view of all achievements, for the Collection UI. */
+  getAchievements(): { def: AchievementDef; progress: number; goal: number; done: boolean }[] {
+    return ACHIEVEMENTS.map((a) => ({
+      def: a,
+      progress: Math.min(this.statValue(a.stat), a.goal),
+      goal: a.goal,
+      done: this.profile.done.includes(a.id),
+    }));
+  }
+
+  /** The n nearest-to-complete unfinished achievements (the "almost there" nudge). */
+  nextClosest(n: number): { def: AchievementDef; progress: number; goal: number }[] {
+    return this.getAchievements()
+      .filter((a) => !a.done && a.goal > 0)
+      .sort((x, y) => y.progress / y.goal - x.progress / x.goal)
+      .slice(0, n)
+      .map(({ def, progress, goal }) => ({ def, progress, goal }));
+  }
+
+  /**
+   * Mark every achievement whose goal is now met as complete, granting its
+   * weapon/coins. Loops to a fixpoint so a grant that completes another (e.g. the
+   * last weapon completing the "unlock everything" capstone) resolves in one pass.
+   * Does not persist — callers batch the save.
+   */
+  private applyAchievements(): { newAchievements: AchievementDef[]; newWeapons: string[] } {
+    const newAchievements: AchievementDef[] = [];
+    const newWeapons: string[] = [];
+    const done = new Set(this.profile.done);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const a of ACHIEVEMENTS) {
+        if (done.has(a.id) || this.statValue(a.stat) < a.goal) continue;
+        done.add(a.id);
+        this.profile.done.push(a.id);
+        newAchievements.push(a);
+        if (a.unlock?.kind === 'weapon' && !this.isWeaponUnlocked(a.unlock.id)) {
+          this.profile.unlocked.push(a.unlock.id);
+          newWeapons.push(a.unlock.id);
+        }
+        if (a.coins) this.profile.coins += a.coins;
+        changed = true;
+      }
+    }
+    return { newAchievements, newWeapons };
   }
 
   /** Add coins (e.g. rewards). Non-positive / invalid amounts are ignored. */

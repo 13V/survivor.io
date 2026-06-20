@@ -46,6 +46,7 @@ export class Hud {
   private end: HTMLElement;
   private endTitle: HTMLElement;
   private endStats: HTMLElement;
+  private endExtra: HTMLElement;
   private endBtn: HTMLElement;
 
   constructor(root: HTMLElement) {
@@ -69,6 +70,7 @@ export class Hud {
       <div class="overlay end" data-ui hidden>
         <h1 class="end-title"></h1>
         <p class="end-stats"></p>
+        <div class="end-extra"></div>
         <button class="btn end-btn" data-ui>Play again</button>
         <p class="hint">WASD / arrows or drag to move · attacks are automatic</p>
       </div>`;
@@ -91,6 +93,7 @@ export class Hud {
     this.end = q('.end');
     this.endTitle = q('.end-title');
     this.endStats = q('.end-stats');
+    this.endExtra = q('.end-extra');
     this.endBtn = q('.end-btn');
   }
 
@@ -143,9 +146,10 @@ export class Hud {
     this.levelup.hidden = true;
   }
 
-  showEnd(title: string, stats: string, onRestart: () => void): void {
+  showEnd(title: string, stats: string, onRestart: () => void, extraHtml = ''): void {
     this.endTitle.textContent = title;
     this.endStats.textContent = stats;
+    this.endExtra.innerHTML = extraHtml;
     this.endBtn.onclick = () => onRestart();
     this.end.hidden = false;
   }

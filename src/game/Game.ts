@@ -50,7 +50,7 @@ import { Hud, type LevelOption } from '../ui/hud';
 import * as C from '../config';
 import { rand, pick } from '../core/rng';
 import { audio } from '../audio/sfx';
-import { meta } from '../meta/save';
+import { meta, type RunResult } from '../meta/save';
 import { settings } from '../ui/settings';
 import type { Minimap } from '../ui/minimap';
 
@@ -200,6 +200,8 @@ export class Game {
   private time = 0;
   private kills = 0;
   private level = 1;
+  // Per-run achievement counters, committed to the meta profile in end().
+  private runStats = { crits: 0, eliteKills: 0, bossKills: 0, evolutions: 0, tookDamage: false };
   private xp = 0;
   private xpNext = C.xpForLevel(1);
   private spawnAcc = 0;
@@ -1087,6 +1089,7 @@ export class Game {
 
   private damageEnemy(eid: number, base: number, crit: boolean): void {
     if (this.dead.has(eid)) return;
+    if (crit) this.runStats.crits++;
     const dmg = base * (crit ? this.mods.critDmg : 1);
     Enemy.hp[eid] -= dmg;
     Enemy.flash[eid] = 0.09;
@@ -1608,6 +1611,7 @@ export class Game {
         const rr = pr + this.player.radius;
         if (dxp * dxp + dyp * dyp < rr * rr) {
           if (!this.invulnerable()) {
+            this.runStats.tookDamage = true;
             this.player.hp -= Projectile.dmg[e] * this.mods.dmgTakenMul;
             this.player.invuln = C.PLAYER_INVULN;
             audio.playerHurt();
@@ -1652,11 +1656,15 @@ export class Game {
       // Elite payout: the big gold gem (from the XP buff) plus a crimson pop, a heal drop, and a
       // small shock so dropping a pack-leader reads as an event.
       if (Enemy.elite[e]) {
+        this.runStats.eliteKills++;
         this.spawnGem(Position.x[e], Position.y[e], 0, 3); // guaranteed heal
         this.particles.ring(Position.x[e], Position.y[e], ELITE_TINT, 90);
         this.addShake(5);
       }
-      if (Enemy.boss[e]) this.win = true;
+      if (Enemy.boss[e]) {
+        this.runStats.bossKills++;
+        this.win = true;
+      }
       if (ENEMY_DEFS[Enemy.kind[e]].explodeOnDeath) {
         const hx = Position.x[e];
         const hy = Position.y[e];
@@ -1715,6 +1723,7 @@ export class Game {
       const dx = Position.x[e] - p.x;
       const dy = Position.y[e] - p.y;
       if (dx * dx + dy * dy < (p.radius + er) * (p.radius + er)) {
+        this.runStats.tookDamage = true;
         p.hp -= Enemy.dmg[e] * this.mods.dmgTakenMul;
         p.invuln = C.PLAYER_INVULN;
         audio.playerHurt();
@@ -1779,6 +1788,7 @@ export class Game {
         const dx = this.player.x - tg.x;
         const dy = this.player.y - tg.y;
         if (dx * dx + dy * dy < tg.r * tg.r && !this.invulnerable()) {
+          this.runStats.tookDamage = true;
           this.player.hp -= tg.dmg * this.mods.dmgTakenMul;
           this.player.invuln = C.PLAYER_INVULN;
           audio.playerHurt();
@@ -1890,6 +1900,7 @@ export class Game {
         for (const b of w.blades) b.destroy();
         w.blades = [];
         if (evDef.orbit) this.rebuildBlades(w);
+        this.runStats.evolutions++;
         audio.levelUp();
         this.flash('#ffffff', 0.6);
         this.addShake(12);
@@ -1933,7 +1944,7 @@ export class Game {
     }
     if (this.weapons.length < MAX_WEAPONS) {
       for (const id in WEAPONS) {
-        if (!this.ownedWeapons.has(id) && !WEAPONS[id].hidden)
+        if (!this.ownedWeapons.has(id) && !WEAPONS[id].hidden && meta.isWeaponUnlocked(id))
           opts.push({ kind: 'weapon-new', id, title: `${WEAPONS[id].name}`, sub: WEAPONS[id].desc, icon: WEAPONS[id].icon });
       }
     }
@@ -2013,14 +2024,54 @@ export class Game {
     if (this.dashBtn) this.dashBtn.style.display = 'none';
     this.input.enabled = false;
     audio.setBossMode(false);
-    meta.recordRun({ timeSec: this.time, kills: this.kills, level: this.level });
+    const result = meta.recordRun({
+      timeSec: this.time,
+      kills: this.kills,
+      level: this.level,
+      crits: this.runStats.crits,
+      eliteKills: this.runStats.eliteKills,
+      bossKills: this.runStats.bossKills,
+      evolutions: this.runStats.evolutions,
+      won: this.win,
+      noHit: !this.runStats.tookDamage,
+    });
     const mm = Math.floor(this.time / 60);
     const ss = Math.floor(this.time % 60);
     this.hud.showEnd(
       title,
       `Time ${mm}:${ss.toString().padStart(2, '0')}   ·   Kills ${this.kills}   ·   Level ${this.level}`,
       () => this.reset(),
+      this.buildEndReveal(result),
     );
+  }
+
+  // The unlock/achievement reveal + "almost there" nudge shown on the death card —
+  // the loop's retry bait ("1 boss kill from the Railgun!").
+  private buildEndReveal(result: RunResult): string {
+    let html = '';
+    if (result.newWeapons.length) {
+      const names = result.newWeapons
+        .map((id) => `${WEAPONS[id]?.icon ?? '🔫'} ${WEAPONS[id]?.name ?? id}`)
+        .join(' · ');
+      html += `<div class="end-unlock">🔓 NEW WEAPON${result.newWeapons.length > 1 ? 'S' : ''}: ${names}</div>`;
+    }
+    const badges = result.newAchievements.filter((a) => !a.unlock);
+    if (badges.length) {
+      const names = badges.map((a) => `${a.icon} ${a.name}`).join(' · ');
+      html += `<div class="end-badge">🏅 ${names}</div>`;
+    }
+    const close = meta.nextClosest(2);
+    if (close.length) {
+      const rows = close
+        .map((c) => {
+          const pct = Math.max(2, Math.round((c.progress / c.goal) * 100));
+          const reward = c.def.unlock ? ` → ${WEAPONS[c.def.unlock.id]?.name ?? ''}` : '';
+          return `<div class="next-row"><span class="next-name">${c.def.icon} ${c.def.name}${reward}</span><span class="next-bar"><i style="width:${pct}%"></i></span><span class="next-num">${Math.floor(c.progress)}/${c.goal}</span></div>`;
+        })
+        .join('');
+      html += `<div class="next-wrap"><div class="next-head">NEXT UNLOCK</div>${rows}</div>`;
+    }
+    return html;
   }
 
   // ---- lifecycle ------------------------------------------------------------
@@ -2089,6 +2140,7 @@ export class Game {
     if (this.dashBtn) this.dashBtn.style.display = 'flex';
     this.time = 0;
     this.kills = 0;
+    this.runStats = { crits: 0, eliteKills: 0, bossKills: 0, evolutions: 0, tookDamage: false };
     this.level = 1;
     this.xp = 0;
     this.xpNext = C.xpForLevel(1);

@@ -503,6 +503,81 @@ canvas {
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7);
 }
 
+/* End-screen unlock reveal + "next unlock" nudge */
+.end-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, 88vw);
+  align-items: stretch;
+}
+.end-extra:empty {
+  display: none;
+}
+.end-unlock {
+  text-align: center;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #ffd24a;
+  background: rgba(255, 210, 74, 0.12);
+  border: 1px solid rgba(255, 210, 74, 0.5);
+  border-radius: 10px;
+  padding: 8px 10px;
+  animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both 0.2s;
+}
+.end-badge {
+  text-align: center;
+  font-size: 13px;
+  color: #9be7ff;
+}
+.next-wrap {
+  background: rgba(20, 26, 38, 0.7);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.next-head {
+  font-size: 10px;
+  letter-spacing: 2px;
+  opacity: 0.6;
+  text-align: center;
+  margin-bottom: 6px;
+}
+.next-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  margin: 4px 0;
+}
+.next-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.next-bar {
+  width: 70px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  flex: none;
+}
+.next-bar > i {
+  display: block;
+  height: 100%;
+  background: #ffd24a;
+  border-radius: 3px;
+}
+.next-num {
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+  min-width: 48px;
+  text-align: right;
+  flex: none;
+}
+
 .btn {
   pointer-events: auto;
   background: linear-gradient(180deg, #5fe093 0%, var(--green) 55%, #2fa75c 100%);

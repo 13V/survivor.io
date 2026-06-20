@@ -16,6 +16,7 @@ import { CHARACTERS, STAGES, PETS } from './game/data';
 import { CharSelect } from './ui/charselect';
 import { StageSelect } from './ui/stageselect';
 import { GearScreen } from './ui/gearscreen';
+import { CollectionScreen } from './ui/collection';
 import { PetSelect } from './ui/petselect';
 
 async function main(): Promise<void> {
@@ -66,6 +67,7 @@ async function main(): Promise<void> {
   const charSelect = new CharSelect(title.mount, Object.values(CHARACTERS));
   const petSelect = new PetSelect(title.mount, Object.values(PETS));
   const gearScreen = new GearScreen(root); // floating loadout button + full-screen modal
+  const collectionScreen = new CollectionScreen(root); // floating arsenal/achievements button + modal
 
   new SettingsPanel(root, {
     onPause: () => app.ticker.stop(),
@@ -78,6 +80,7 @@ async function main(): Promise<void> {
     started = true;
     title.hide();
     gearScreen.setVisible(false);
+    collectionScreen.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
     new Game(app, hud, minimap, charSelect.selected, stageSelect.selected, petSelect.selected);
@@ -87,6 +90,7 @@ async function main(): Promise<void> {
   charSelect.setVisible(true);
   petSelect.setVisible(true);
   gearScreen.setVisible(true);
+  collectionScreen.setVisible(true);
 }
 
 void main();

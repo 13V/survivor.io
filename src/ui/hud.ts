@@ -54,7 +54,10 @@ export class Hud {
   private xpBar: HTMLElement;
   private lvl: HTMLElement;
   private hpBar: HTMLElement;
+  private hpLoss: HTMLElement;
+  private hpWrap: HTMLElement;
   private hpText: HTMLElement;
+  private lvlBadge: HTMLElement;
   private skills: HTMLElement;
   private bossWrap: HTMLElement;
   private bossBar: HTMLElement;
@@ -72,19 +75,39 @@ export class Hud {
   private endStats: HTMLElement;
   private endExtra: HTMLElement;
   private endBtn: HTMLElement;
+  // Per-frame diff state so update() only touches the DOM when values change.
+  private prevLevel = 1;
+  private hpGhost = 1; // eased HP for the draining "damage trail" bar
+  private hpLow = false;
+  private skillSig = '';
+  private prevW: { icon: string; level: number }[] = [];
+  private prevP: { icon: string; level: number }[] = [];
 
   constructor(root: HTMLElement) {
     const el = document.createElement('div');
     el.innerHTML = `
       <div class="hud">
         <div class="topbar">
-          <div class="timer">0:00</div>
-          <div class="kills">☠ 0</div>
+          <div class="hud-mod timer-mod"><span class="mod-ico">⏱</span><span class="timer">0:00</span></div>
+          <div class="hud-mod kills-mod"><span class="mod-ico">☠</span><span class="kills">0</span></div>
         </div>
-        <div class="xpwrap"><div class="xpbar"></div><div class="lvl">Lv 1</div></div>
-        <div class="bosswrap" hidden><div class="bossbar"></div></div>
+        <div class="xprow">
+          <div class="lvl-badge"><span class="lvl-lab">LV</span><span class="lvl">1</span></div>
+          <div class="xpwrap"><div class="xpbar"></div></div>
+        </div>
+        <div class="bosswrap" hidden>
+          <div class="boss-head"><span class="boss-skull">☠</span><span class="boss-name">BOSS</span></div>
+          <div class="bosstrack"><div class="bossbar"></div></div>
+        </div>
         <div class="skills"></div>
-        <div class="hpwrap"><div class="hpbar"></div><div class="hptext"></div></div>
+        <div class="hpwrap">
+          <span class="hp-ico">❤</span>
+          <div class="hptrack">
+            <div class="hpbar-loss"></div>
+            <div class="hpbar"></div>
+            <span class="hptext"></span>
+          </div>
+        </div>
       </div>
       <div class="combo" hidden><span class="combo-num"></span><span class="combo-bar"><i></i></span></div>
       <div class="banner-wrap"></div>
@@ -108,7 +131,10 @@ export class Hud {
     this.kills = q('.kills');
     this.xpBar = q('.xpbar');
     this.lvl = q('.lvl');
+    this.lvlBadge = q('.lvl-badge');
     this.hpBar = q('.hpbar');
+    this.hpLoss = q('.hpbar-loss');
+    this.hpWrap = q('.hpwrap');
     this.hpText = q('.hptext');
     this.skills = q('.skills');
     this.bossWrap = q('.bosswrap');
@@ -131,23 +157,38 @@ export class Hud {
 
   update(s: HudState): void {
     this.timer.textContent = fmtTime(s.time);
-    this.kills.textContent = `☠ ${s.kills}`;
+    this.kills.textContent = `${s.kills}`;
     this.xpBar.style.width = `${Math.min(100, (s.xp / s.xpNext) * 100)}%`;
-    this.lvl.textContent = `Lv ${s.level}`;
-    const hpPct = Math.max(0, (s.hp / s.maxHp) * 100);
-    this.hpBar.style.width = `${hpPct}%`;
-    this.hpBar.style.background = hpPct < 30 ? '#ff4d5e' : '#46d17a';
+    if (s.level !== this.prevLevel) {
+      this.lvl.textContent = `${s.level}`;
+      if (s.level > this.prevLevel) this.pop(this.lvlBadge);
+      this.prevLevel = s.level;
+    }
+
+    // HP bar + a "damage trail" that lags behind, plus a low-HP danger state.
+    const hpPct = Math.max(0, Math.min(1, s.hp / s.maxHp));
+    this.hpBar.style.width = `${hpPct * 100}%`;
+    if (hpPct >= this.hpGhost) this.hpGhost = hpPct;
+    else this.hpGhost += (hpPct - this.hpGhost) * 0.08;
+    this.hpLoss.style.width = `${this.hpGhost * 100}%`;
+    const low = hpPct > 0 && hpPct < 0.3;
+    if (low !== this.hpLow) {
+      this.hpWrap.classList.toggle('low', low);
+      this.hpLow = low;
+    }
     this.hpText.textContent = `${Math.ceil(s.hp)} / ${Math.round(s.maxHp)}`;
 
-    let html = '';
-    for (const w of s.weapons) html += `<span class="chip wpn">${w.icon}<b>${w.level}</b></span>`;
-    for (const p of s.passives) html += `<span class="chip pas">${p.icon}<b>${p.level}</b></span>`;
-    this.skills.innerHTML = html;
+    this.renderSkills(s.weapons, s.passives);
 
     if (s.boss) {
-      this.bossWrap.hidden = false;
+      if (this.bossWrap.hidden) {
+        this.bossWrap.hidden = false;
+        this.bossWrap.classList.remove('boss-in');
+        void this.bossWrap.offsetWidth; // restart the entrance animation
+        this.bossWrap.classList.add('boss-in');
+      }
       this.bossBar.style.width = `${(s.boss.hp / s.boss.maxHp) * 100}%`;
-    } else {
+    } else if (!this.bossWrap.hidden) {
       this.bossWrap.hidden = true;
     }
 
@@ -159,6 +200,37 @@ export class Hud {
     } else {
       this.joy.hidden = true;
     }
+  }
+
+  // Re-trigger a one-shot CSS animation on an element.
+  private pop(el: HTMLElement): void {
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  }
+
+  // Rebuild the chip tray only when it actually changes; freshly gained or
+  // levelled chips get a `pop` so the upgrade reads.
+  private renderSkills(
+    weapons: { icon: string; level: number }[],
+    passives: { icon: string; level: number }[],
+  ): void {
+    const sig =
+      weapons.map((w) => w.icon + w.level).join(',') + '|' + passives.map((p) => p.icon + p.level).join(',');
+    if (sig === this.skillSig) return;
+    let html = '';
+    weapons.forEach((w, i) => {
+      const fresh = !this.prevW[i] || this.prevW[i].level < w.level;
+      html += `<span class="chip wpn${fresh ? ' pop' : ''}">${w.icon}<b>${w.level}</b></span>`;
+    });
+    passives.forEach((p, i) => {
+      const fresh = !this.prevP[i] || this.prevP[i].level < p.level;
+      html += `<span class="chip pas${fresh ? ' pop' : ''}">${p.icon}<b>${p.level}</b></span>`;
+    });
+    this.skills.innerHTML = html;
+    this.skillSig = sig;
+    this.prevW = weapons.map((w) => ({ ...w }));
+    this.prevP = passives.map((p) => ({ ...p }));
   }
 
   /** Drive the live kill-streak meter. `frac` is the remaining streak time (0..1). */

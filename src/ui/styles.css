@@ -1,15 +1,75 @@
 :root {
-  --green: #46d17a;
-  --gold: #ffd24a;
-  --blue: #5ab0ff;
-  --panel: rgba(14, 18, 26, 0.82);
-  --red: #ff4d5e;
-  --stroke: rgba(255, 255, 255, 0.14);
+  /* ---- Design tokens -----------------------------------------------------
+     One source of truth for the whole HUD: colours, glass, type, spacing,
+     radii and elevation. Components consume these — no magic numbers. */
+
+  /* Brand + semantic colour */
+  --accent: #ffd24a; /* gold — the single hero accent */
+  --accent-ink: #2a1d02; /* readable text on accent fills */
+  --hp: #4fe08a;
+  --hp-deep: #1f8a4c;
+  --hp-low: #ff4d5e;
+  --hp-low-deep: #a8202e;
+  --hp-loss: #ff9bb0; /* the draining damage-trail colour */
+  --xp: #8aa6ff;
+  --xp-deep: #a06bff;
+  --boss: #ff5a6e;
+  --boss-deep: #ff8a3c;
+
+  /* Surfaces / glass */
+  --bg: #0b0e15;
+  --surface-1: rgba(17, 22, 33, 0.74);
+  --surface-2: rgba(28, 35, 51, 0.88);
+  --rail: rgba(0, 0, 0, 0.5);
+  --glass-blur: 9px;
+  --stroke: rgba(255, 255, 255, 0.12);
+  --stroke-strong: rgba(255, 255, 255, 0.24);
+  --hairline: rgba(255, 255, 255, 0.07);
+
+  /* Type scale */
+  --fz-xl: 28px;
+  --fz-lg: 20px;
+  --fz-md: 15px;
+  --fz-sm: 12px;
+  --fz-xs: 10px;
+
+  /* Spacing — 4px grid */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+
+  /* Radii */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+
+  /* Elevation + bevels */
+  --e1: 0 2px 6px rgba(0, 0, 0, 0.45);
+  --e2: 0 6px 18px rgba(0, 0, 0, 0.5);
+  --e3: 0 14px 34px rgba(0, 0, 0, 0.6);
+  --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  --bevel-strong: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.22);
   --ink: 0 2px 6px rgba(0, 0, 0, 0.9);
+
+  /* Legacy aliases (kept so the rest of the app keeps working) */
+  --green: var(--hp);
+  --gold: var(--accent);
+  --blue: #5ab0ff;
+  --red: var(--hp-low);
+  --panel: var(--surface-1);
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* the `hidden` attribute must win even over components that set display
+   (e.g. .bosswrap/.combo are display:flex) */
+[hidden] {
+  display: none !important;
 }
 
 html,
@@ -36,248 +96,340 @@ canvas {
   display: block;
 }
 
-/* ---- HUD ---- */
+/* ---- HUD ---------------------------------------------------------------- */
 .hud {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  padding: max(10px, env(safe-area-inset-top)) 12px 12px;
+  padding: max(var(--s3), env(safe-area-inset-top)) max(var(--s3), env(safe-area-inset-right))
+    max(var(--s3), env(safe-area-inset-bottom)) max(var(--s3), env(safe-area-inset-left));
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--s2);
 }
 
 .topbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
+  align-items: flex-start;
+  gap: var(--s2);
+  /* keep clear of the fixed settings gear pinned to the top-right */
+  padding-right: 48px;
+}
+
+/* shared glass "module" — the kit every top-bar readout is built from */
+.hud-mod {
+  display: inline-flex;
   align-items: center;
-  font-weight: 700;
-}
-
-.timer {
-  font-size: 26px;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: 1px;
-  color: #fff;
-  text-shadow: 0 2px 4px #000, 0 0 14px rgba(0, 0, 0, 0.6);
-}
-
-.kills {
-  font-size: 16px;
-  font-variant-numeric: tabular-nums;
-  background: var(--panel);
-  padding: 4px 12px;
-  border-radius: 20px;
+  gap: var(--s2);
+  padding: 6px var(--s3);
+  border-radius: var(--r-pill);
+  background: var(--surface-1);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   border: 1px solid var(--stroke);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 2px 6px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--bevel), var(--e1);
+  font-variant-numeric: tabular-nums;
   text-shadow: var(--ink);
+}
+.hud-mod .mod-ico {
+  font-size: var(--fz-md);
+  line-height: 1;
+  opacity: 0.9;
+}
+.timer {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.timer-mod .mod-ico {
+  color: var(--accent);
+}
+.kills {
+  font-size: var(--fz-md);
+  font-weight: 800;
+}
+.kills-mod .mod-ico {
+  color: var(--hp-low);
+}
+
+.xprow {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+}
+
+/* level badge anchored at the head of the XP rail */
+.lvl-badge {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 42px;
+  padding: 3px var(--s2);
+  border-radius: var(--r-sm);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+  border: 1px solid var(--accent);
+  box-shadow: var(--bevel), 0 0 12px rgba(255, 210, 74, 0.28), var(--e1);
+  line-height: 1;
+}
+.lvl-badge .lvl-lab {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  opacity: 0.85;
+}
+.lvl-badge .lvl {
+  font-size: 17px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--ink);
+}
+.lvl-badge.pop {
+  animation: badge-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes badge-pop {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.28); box-shadow: var(--bevel), 0 0 22px rgba(255, 210, 74, 0.7), var(--e1); }
+  100% { transform: scale(1); }
 }
 
 .xpwrap {
   position: relative;
-  height: 16px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 10px;
+  flex: 1;
+  height: 14px;
+  background: var(--rail);
+  border-radius: var(--r-pill);
   overflow: hidden;
   border: 1px solid var(--stroke);
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.55);
 }
-
 .xpbar {
   position: relative;
   height: 100%;
   width: 0%;
-  border-radius: 10px;
-  background: linear-gradient(180deg, #8aa2ff 0%, #6a8bff 45%, #a06bff 100%);
+  border-radius: inherit;
+  background: linear-gradient(180deg, var(--xp) 0%, #6a8bff 45%, var(--xp-deep) 100%);
   box-shadow: 0 0 10px rgba(122, 130, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
-
 /* animated sheen sweeping across the XP fill */
 .xpbar::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    100deg,
-    transparent 20%,
-    rgba(255, 255, 255, 0.5) 50%,
-    transparent 80%
-  );
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.5) 50%, transparent 80%);
   background-size: 220% 100%;
   animation: xp-sheen 2.6s linear infinite;
   mix-blend-mode: screen;
   pointer-events: none;
 }
-
 @keyframes xp-sheen {
-  from {
-    background-position: 180% 0;
-  }
-  to {
-    background-position: -80% 0;
-  }
-}
-
-.lvl {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.5px;
-  text-shadow: 0 1px 2px #000, 0 0 6px rgba(0, 0, 0, 0.8);
+  from { background-position: 180% 0; }
+  to { background-position: -80% 0; }
 }
 
 .bosswrap {
-  position: relative;
-  height: 10px;
-  background: rgba(0, 0, 0, 0.5);
-  border-radius: 6px;
-  overflow: hidden;
-  border: 1px solid rgba(255, 80, 80, 0.55);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 12px rgba(255, 60, 70, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: min(560px, 92%);
+  align-self: center;
+  margin-top: 2px;
 }
-
+.bosswrap.boss-in {
+  animation: boss-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes boss-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.boss-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fz-xs);
+  font-weight: 900;
+  letter-spacing: 3px;
+  color: var(--boss);
+  text-shadow: 0 1px 3px #000, 0 0 12px rgba(255, 90, 70, 0.5);
+}
+.boss-skull {
+  font-size: var(--fz-sm);
+}
+.bosstrack {
+  position: relative;
+  height: 12px;
+  background: var(--rail);
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  border: 1px solid rgba(255, 90, 90, 0.6);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 16px rgba(255, 60, 70, 0.35);
+}
 .bossbar {
   position: relative;
   height: 100%;
   width: 100%;
-  background: linear-gradient(180deg, #ff6b78 0%, #ff4d5e 45%, #ff8a3c 100%);
+  background: linear-gradient(180deg, #ff6b78 0%, var(--boss) 45%, var(--boss-deep) 100%);
   box-shadow: 0 0 8px rgba(255, 90, 70, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
-  transition: width 0.1s linear;
+  transition: width 0.12s linear;
 }
-
 .bossbar::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 55%);
+  /* gloss + segmented health notches */
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 55%),
+    repeating-linear-gradient(90deg, transparent 0 38px, rgba(0, 0, 0, 0.28) 38px 40px);
   pointer-events: none;
 }
 
 .skills {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: var(--s1);
 }
-
 .chip {
   position: relative;
-  width: 34px;
-  height: 34px;
-  border-radius: 9px;
-  background: linear-gradient(180deg, rgba(40, 48, 64, 0.92), rgba(14, 18, 26, 0.92));
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 19px;
   border: 1px solid var(--stroke);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 2px 5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--bevel), var(--e1);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
-
 .chip.wpn {
   border-color: rgba(255, 210, 74, 0.7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 9px rgba(255, 210, 74, 0.35),
-    0 2px 5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--bevel), 0 0 9px rgba(255, 210, 74, 0.35), var(--e1);
 }
-
 .chip.pas {
   border-color: rgba(90, 176, 255, 0.7);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 0 9px rgba(90, 176, 255, 0.35),
-    0 2px 5px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--bevel), 0 0 9px rgba(90, 176, 255, 0.35), var(--e1);
 }
-
+/* level pip as a rounded badge in the corner */
 .chip b {
   position: absolute;
-  right: 1px;
-  bottom: -1px;
-  font-size: 10px;
-  font-weight: 800;
-  color: var(--gold);
-  text-shadow: 0 1px 2px #000, 0 0 3px #000;
+  right: -3px;
+  bottom: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-pill);
+  font-size: var(--fz-xs);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  box-shadow: var(--e1);
 }
-
 .chip.pas b {
-  color: var(--blue);
+  color: #04243f;
+  background: var(--blue);
+}
+.chip.pop {
+  animation: chip-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes chip-pop {
+  0% { transform: scale(0.6); }
+  55% { transform: scale(1.22); }
+  100% { transform: scale(1); }
 }
 
 .hpwrap {
-  position: relative;
   margin-top: auto;
-  height: 22px;
-  background: rgba(0, 0, 0, 0.55);
-  border-radius: 12px;
-  overflow: hidden;
-  width: min(440px, 80%);
   align-self: center;
-  border: 1px solid var(--stroke);
-  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  width: min(460px, 86%);
 }
-
-.hpbar {
+.hp-ico {
+  flex: none;
+  font-size: 20px;
+  color: var(--hp);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.7));
+  transition: color 0.25s ease;
+}
+.hpwrap.low .hp-ico {
+  color: var(--hp-low);
+  animation: heart-beat 0.85s ease-in-out infinite;
+}
+@keyframes heart-beat {
+  0%, 100% { transform: scale(1); }
+  30% { transform: scale(1.22); }
+  45% { transform: scale(1); }
+}
+.hptrack {
   position: relative;
-  height: 100%;
+  flex: 1;
+  height: 22px;
+  background: var(--rail);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  border: 1px solid var(--stroke);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.6), var(--e1);
+}
+/* the draining "damage trail" that lags a beat behind the live bar */
+.hpbar-loss {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
   width: 100%;
-  /* JS sets a flat background color (green / red) inline; overlays below
-     supply the gloss + gradient + low-HP pulse so the look survives. */
-  background: var(--green);
-  box-shadow: 0 0 8px rgba(70, 209, 122, 0.35);
-  transition: width 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+  z-index: 0;
+  border-radius: inherit;
+  background: var(--hp-loss);
+  opacity: 0.7;
 }
-
-/* glossy top highlight + bottom shade, tints whatever flat color JS sets */
-.hpbar::before {
-  content: '';
+.hpbar {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.4) 0%,
-    rgba(255, 255, 255, 0.08) 45%,
-    rgba(0, 0, 0, 0.18) 100%
-  );
-  pointer-events: none;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 100%;
+  z-index: 1;
+  border-radius: inherit;
+  background: linear-gradient(180deg, #6cf0a2 0%, var(--hp) 45%, var(--hp-deep) 100%);
+  box-shadow: 0 0 10px rgba(70, 209, 122, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.2);
+  transition: width 0.12s cubic-bezier(0.22, 1, 0.36, 1), background 0.25s ease;
 }
-
-/* always-on subtle breathing glow; reads as a low-HP heartbeat when the
-   bar is narrow and JS has swapped the fill to red (CSS-only, no class needed) */
-.hpbar::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(255, 255, 255, 0.12);
-  opacity: 0;
-  animation: hp-pulse 1.4s ease-in-out infinite;
-  pointer-events: none;
+.hpwrap.low .hpbar {
+  background: linear-gradient(180deg, #ff7d8a 0%, var(--hp-low) 45%, var(--hp-low-deep) 100%);
+  box-shadow: 0 0 14px rgba(255, 77, 94, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  animation: hp-danger 0.85s ease-in-out infinite;
 }
-
-@keyframes hp-pulse {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 0.22;
-  }
+@keyframes hp-danger {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.3); }
 }
-
 .hptext {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 12px;
+  font-size: var(--fz-sm);
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.5px;
   text-shadow: 0 1px 2px #000, 0 0 5px rgba(0, 0, 0, 0.9);
-  z-index: 1;
 }
 
 /* ---- joystick ---- */
@@ -799,7 +951,11 @@ canvas {
 /* respect users who prefer less motion */
 @media (prefers-reduced-motion: reduce) {
   .xpbar::after,
-  .hpbar::after {
+  .lvl-badge.pop,
+  .chip.pop,
+  .hpwrap.low .hp-ico,
+  .hpwrap.low .hpbar,
+  .bosswrap.boss-in {
     animation: none;
   }
   .card,
@@ -813,7 +969,16 @@ canvas {
 /* mobile / small screens: tighten HUD, scale cards down to fit */
 @media (max-width: 480px) {
   .timer {
-    font-size: 22px;
+    font-size: 20px;
+  }
+  .hud-mod {
+    padding: 5px 10px;
+  }
+  .lvl-badge {
+    min-width: 38px;
+  }
+  .hpwrap {
+    width: 94%;
   }
   .overlay h2 {
     font-size: 24px;

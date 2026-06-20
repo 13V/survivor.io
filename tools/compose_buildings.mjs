@@ -126,6 +126,23 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
 
     const R = floors * FH;
 
+    // ---------- soft ground contact shadow (drawn first, under everything) ----------
+    // Without it the boxes read as pasted-on / floating. A blurred dark diamond a touch larger
+    // than the footprint peeks out around the front base edges and near corner -> grounded.
+    {
+      const g = [V(0, 0), V(W, 0), V(W, D), V(0, D)];
+      const cx2 = (g[0][0] + g[2][0]) / 2, cy2 = (g[0][1] + g[2][1]) / 2;
+      const ex = 1.08;
+      ctx.save();
+      ctx.filter = 'blur(12px)';
+      ctx.fillStyle = 'rgba(0,0,0,0.34)';
+      ctx.beginPath();
+      ctx.moveTo(cx2 + (g[0][0] - cx2) * ex, cy2 + (g[0][1] - cy2) * ex);
+      for (let k = 1; k < 4; k++) ctx.lineTo(cx2 + (g[k][0] - cx2) * ex, cy2 + (g[k][1] - cy2) * ex);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+
     // ---------- WALLS, back-to-front by (i+j) ----------
     // Face/tile correspondence is by BASE-EDGE DIRECTION (must match the source tile):
     //   _E base slopes DOWN-right  -> front-LEFT face  (j==D, cells i=0..W-1), BL=V(i,D),  BR=V(i+1,D)
@@ -143,22 +160,35 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
       drawAffine(ctx, tileImg, q.bl, q.br, q.tl, BL, BR, TL);
     };
 
+    // Overlap INTERIOR cell edges a touch so the per-cell tile edge-shading doesn't stack into
+    // dark vertical seams (the "ribbed" look). The two silhouette corners of each face are left
+    // exact so the box stays flush. Windows/doors are drawn at the exact cell on top.
+    const OVL = 0.07;
+    const expand = (BL, BR, lo, hi) => {
+      const dir = [BR[0] - BL[0], BR[1] - BL[1]];
+      return [
+        lo ? [BL[0] - OVL * dir[0], BL[1] - OVL * dir[1]] : BL,
+        hi ? [BR[0] + OVL * dir[0], BR[1] + OVL * dir[1]] : BR,
+      ];
+    };
     for (let f = 0; f < floors; f++) {
       for (const wc of wallCells) {
         if (wc.kind === 'L') {
           const i = wc.a;
           const BL = up(V(i, D), f * FH), BR = up(V(i + 1, D), f * FH);
-          drawFace(E(mat.plain), BL, BR);               // opaque underlay
+          const [eBL, eBR] = expand(BL, BR, i > 0, i < W - 1);
+          drawFace(E(mat.plain), eBL, eBR);             // overlapped opaque underlay (buries seams)
           let ov = null;
           if (door && f === 0 && i === doorI) ov = E(mat.door);
           else { const r = rnd(); if ((f > 0 ? r < 0.65 : r < 0.4)) ov = E(mat.win[Math.floor(rnd() * mat.win.length)]); else rnd(); }
-          if (ov) drawFace(ov, BL, BR);
+          if (ov) drawFace(ov, eBL, eBR);
         } else {
           const j = wc.a;
           const BL = up(V(W, j + 1), f * FH), BR = up(V(W, j), f * FH);
-          drawFace(S(mat.plain), BL, BR);
+          const [eBL, eBR] = expand(BL, BR, j < D - 1, j > 0);
+          drawFace(S(mat.plain), eBL, eBR);
           let ov = null; const r = rnd(); if ((f > 0 ? r < 0.65 : r < 0.4)) ov = S(mat.win[Math.floor(rnd() * mat.win.length)]); else rnd();
-          if (ov) drawFace(ov, BL, BR);
+          if (ov) drawFace(ov, eBL, eBR);
         }
       }
     }
@@ -213,8 +243,9 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
         // object tiles share the (64,208) base-center convention; sit on the roof cell-center, lifted by R
         const cx = Ox + (c.i + 0.5 - (c.j + 0.5)) * SX;
         const cy = Oy + (c.i + 0.5 + (c.j + 0.5)) * SY - R;
-        ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.drawImage(propImg, cx - 64, cy - 208);
+        const psc = 0.5; // AC units / water tanks are small roof furniture, not full-cell volumes
+        ctx.save(); ctx.setTransform(psc, 0, 0, psc, cx - 64 * psc, cy - 208 * psc);
+        ctx.drawImage(propImg, 0, 0);
         ctx.restore();
       }
     }

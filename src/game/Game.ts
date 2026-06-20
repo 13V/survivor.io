@@ -129,6 +129,14 @@ const SURGE_RATE_TELE = 0.35; // ×base during the telegraph (near-quiet)
 const SURGE_RATE_SURGE = 3.4; // ×base during the surge (the wall of flesh)
 type SurgePhase = 'lull' | 'tele' | 'surge';
 
+// ---- Crowd separation (flocking) ------------------------------------------
+// Each mob is pushed off its overlapping neighbours so the swarm churns as a wall of bodies
+// and packs into a ring around the player instead of all stacking on one pixel. Cheap: one
+// spatial-hash neighbour query per mob, reusing the hash already rebuilt each step.
+const SEP_PUSH = 110; // overlap (0..1 per neighbour) -> push speed (px/s) before the cap
+const SEP_CAP_K = 1.15; // cap the separation speed at this × the mob's own move speed
+const SEP_PAD = 2; // start nudging apart a hair before centres actually touch
+
 
 export class Game {
   private world: IWorld = createWorld();
@@ -138,6 +146,7 @@ export class Game {
   private input = new Input();
   private hash = new SpatialHash(120);
   private cand: number[] = [];
+  private sepCand: number[] = []; // scratch for crowd-separation neighbor queries
   private ctx!: WeaponContext;
 
   private spr: (Sprite | undefined)[] = [];
@@ -1355,9 +1364,42 @@ export class Game {
       // Hold position briefly on spawn while the WakeUp emerge animation plays.
       const waking = this.enemyZ[e] !== undefined && this.time - this.enemySpawnT[e] < WAKE_DUR;
       if (!waking) {
-        const [nx, ny] = this.slideMove(Position.x[e], Position.y[e], (dx / d) * Enemy.speed[e] * dt, (dy / d) * Enemy.speed[e] * dt);
-        Position.x[e] = nx;
-        Position.y[e] = ny;
+        const spd = Enemy.speed[e];
+        let mvx = (dx / d) * spd;
+        let mvy = (dy / d) * spd;
+        // Crowd separation: push off overlapping neighbours so the horde packs into a churning
+        // wall instead of stacking. Bosses plow through (others still part around the boss).
+        if (!Enemy.boss[e]) {
+          const ex = Position.x[e];
+          const ey = Position.y[e];
+          const re = Enemy.radius[e];
+          this.hash.queryRadius(ex, ey, re + 34, this.sepCand);
+          let sx = 0;
+          let sy = 0;
+          for (let k = 0; k < this.sepCand.length; k++) {
+            const n = this.sepCand[k];
+            if (n === e) continue;
+            const ox = ex - Position.x[n];
+            const oy = ey - Position.y[n];
+            const min = re + Enemy.radius[n] + SEP_PAD;
+            const d2 = ox * ox + oy * oy;
+            if (d2 > 0 && d2 < min * min) {
+              const nd = Math.sqrt(d2);
+              const overlap = (min - nd) / min; // 0 (just touching) .. 1 (concentric)
+              sx += (ox / nd) * overlap;
+              sy += (oy / nd) * overlap;
+            }
+          }
+          const sl = Math.hypot(sx, sy);
+          if (sl > 0) {
+            const sepSpeed = Math.min(spd * SEP_CAP_K, sl * SEP_PUSH);
+            mvx += (sx / sl) * sepSpeed;
+            mvy += (sy / sl) * sepSpeed;
+          }
+        }
+        const [mx, my] = this.slideMove(Position.x[e], Position.y[e], mvx * dt, mvy * dt);
+        Position.x[e] = mx;
+        Position.y[e] = my;
       }
       if (this.enemyHitT[e] > 0) this.enemyHitT[e] -= dt;
       // Occasional Taunt roar when not crowding the player.

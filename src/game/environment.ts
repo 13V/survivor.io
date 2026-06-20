@@ -20,7 +20,20 @@ export interface EnvAssets {
   isoground: Record<string, Texture>; // named iso street tiles (asphalt/asphalt_yellow/sidewalk/...)
   isoMeta: { diamondW: number; diamondH: number; apexX: number; apexY: number } | null;
   buildings2: Texture[]; // composed complete iso buildings (walls + roof + detail), placed as blocks
+  buildings2Meta: BuildingMeta[]; // parallel to buildings2: footprint + near-corner anchor for grid placement
   extras: Record<string, Texture[]>; // street furniture categories: railing, lamps, signs, rooftop, bins, ...
+}
+
+// Placement metadata for a composed building: pixel size, the near (front) ground-corner anchor
+// in pixels, and the footprint W×D in cells (so the game can seat it on a block's lot at scale 1).
+export interface BuildingMeta {
+  w: number;
+  h: number;
+  anchorX: number;
+  anchorY: number;
+  W: number;
+  D: number;
+  floors: number;
 }
 
 const TILE_CATS = ['ground', 'buildings', 'decals', 'detail', 'cars', 'objects', 'flora', 'street'] as const;
@@ -31,6 +44,7 @@ let firebarrel: Texture[] = [];
 const isoground: Record<string, Texture> = {};
 let isoMeta: EnvAssets['isoMeta'] = null;
 let buildings2: Texture[] = [];
+let buildings2Meta: BuildingMeta[] = [];
 const extras: Record<string, Texture[]> = {};
 const EXTRA_CATS = [
   'railing', 'lamps', 'signs', 'rooftop', 'bins', 'rubble', 'furniture', 'struct', 'traffic', 'trees', 'graffiti', 'roaddetail', 'taxi', 'sedan',
@@ -112,12 +126,32 @@ export async function preloadEnv(): Promise<void> {
     (async () => {
       // Prefer the consistent regenerated set (buildings_v2); fall back to the first pass.
       let dir = 'buildings_v2';
-      let man = (await manifest(dir)) as { tiles?: { file: string }[] } | null;
+      let man = (await manifest(dir)) as { tiles?: (BuildingMeta & { file: string })[] } | null;
       if (!man?.tiles) {
         dir = 'buildings2';
-        man = (await manifest(dir)) as { tiles?: { file: string }[] } | null;
+        man = (await manifest(dir)) as { tiles?: (BuildingMeta & { file: string })[] } | null;
       }
-      if (man?.tiles) buildings2 = await loadList(man.tiles.map((t) => `${dir}/${t.file}`));
+      if (man?.tiles) {
+        // Load tex+meta together and filter as pairs so buildings2Meta stays aligned with buildings2.
+        const pairs = await Promise.all(
+          man.tiles.map(async (t) => {
+            try {
+              const tex = (await Assets.load(url(`${dir}/${t.file}`))) as Texture;
+              tex.source.scaleMode = 'linear';
+              const meta: BuildingMeta = {
+                w: t.w, h: t.h, anchorX: t.anchorX, anchorY: t.anchorY,
+                W: t.W ?? 4, D: t.D ?? 4, floors: t.floors ?? 1,
+              };
+              return { tex, meta };
+            } catch {
+              return null;
+            }
+          }),
+        );
+        const ok = pairs.filter((p): p is { tex: Texture; meta: BuildingMeta } => p !== null);
+        buildings2 = ok.map((p) => p.tex);
+        buildings2Meta = ok.map((p) => p.meta);
+      }
     })(),
     ...EXTRA_CATS.map(async (c) => {
       const man = (await manifest(c)) as { tiles?: { file: string }[] } | null;
@@ -147,6 +181,7 @@ export function buildEnv(): EnvAssets | null {
     isoground,
     isoMeta,
     buildings2,
+    buildings2Meta,
     extras,
   };
 }

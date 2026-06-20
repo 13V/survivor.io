@@ -197,7 +197,7 @@ export class Game {
   private groundPool: Sprite[] = [];
   private isoMap: Record<string, Texture> = {}; // named street tiles (asphalt/asphalt_yellow/sidewalk/...)
   private groundAnchorY = 0.5; // top-face-center as a fraction of tile height
-  private showBuildings = false; // buildings parked for now — focusing on the street floor
+  private showBuildings = true; // flush prism-composed buildings seated on the block lots
   private diamondTex: Texture | null = null;
   private fxC = new Container();
   private animClock = 0;
@@ -585,17 +585,29 @@ export class Game {
     const randCell = (): number => ((Math.random() * (2 * span)) | 0) - span;
 
     const ex = env.extras;
-    // composed multi-storey buildings (fallback to single facades) packed into block
-    // interiors on a 3-cell grid so each block is a solid mass with streets around it.
-    const buildings = env.buildings2.length ? env.buildings2 : env.buildings;
-    if (this.showBuildings && buildings.length) {
+    // Composed iso buildings seated on each block's 4×4 concrete lot (cells 4..7). The composer
+    // is built at the SAME screen scale as one iso cell (64×32 px/cell), so buildings drop in at
+    // scale 1 with their footprint matching the lot grid exactly. Each is placed by its real
+    // near-corner anchor so walls sit flush on the lot and depth-sort against the cast correctly.
+    const buildings = env.buildings2;
+    const meta = env.buildings2Meta;
+    if (this.showBuildings && buildings.length && meta.length) {
       for (let bc = -NB; bc <= NB; bc++) {
         for (let br = -NB; br <= NB; br++) {
-          // ONE solid building per block, centred in the 4-cell lot (cells 4..7), no overlap
-          // and exact grid scale so each reads as a clean rectangular box with streets around it.
-          const cc = bc * B + 5.5;
-          const rr = br * B + 5.5;
-          addAt(buildings[(Math.random() * buildings.length) | 0], cc * TILE, rr * TILE, 0.86, 1.0);
+          const pick = this.cellHash(bc * 73856093, br * 19349663);
+          const idx = (pick * buildings.length) | 0;
+          const m = meta[idx] ?? meta[0];
+          // Lot occupies cells [4 .. 7] in both axes; the lot's front outer vertex is at block
+          // cell 8 (the lot/sidewalk boundary). Front-align every footprint to that vertex so the
+          // front wall meets the sidewalk and any back margin (for <4×4 boxes) hides behind it.
+          const nearWx = (bc * B + 8) * TILE;
+          const nearWy = (br * B + 8) * TILE;
+          if (nearWx * nearWx + nearWy * nearWy < clear * clear) continue;
+          const s = new Sprite(buildings[idx]);
+          s.anchor.set(m.anchorX / m.w, m.anchorY / m.h);
+          this.place(s, nearWx, nearWy);
+          this.worldC.addChild(s);
+          this.envProps.push(s);
         }
       }
     }

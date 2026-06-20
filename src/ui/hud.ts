@@ -9,6 +9,22 @@ export interface LevelOption {
   icon: string;
 }
 
+/** Draft state for the level-up screen (cards + remaining reroll/banish + lock). */
+export interface LevelUpView {
+  options: LevelOption[];
+  rerolls: number;
+  banishes: number;
+  lockedId: string | null;
+}
+
+/** Player actions on the level-up screen. */
+export interface LevelUpHandlers {
+  pick: (o: LevelOption) => void;
+  reroll: () => void;
+  banish: (o: LevelOption) => void;
+  lock: (o: LevelOption) => void;
+}
+
 export interface HudState {
   time: number;
   hp: number;
@@ -43,6 +59,7 @@ export class Hud {
   private joyKnob: HTMLElement;
   private levelup: HTMLElement;
   private cards: HTMLElement;
+  private lvlActions: HTMLElement;
   private end: HTMLElement;
   private endTitle: HTMLElement;
   private endStats: HTMLElement;
@@ -66,6 +83,7 @@ export class Hud {
       <div class="overlay levelup" data-ui hidden>
         <h2>LEVEL UP</h2>
         <div class="cards"></div>
+        <div class="lvl-actions"></div>
       </div>
       <div class="overlay end" data-ui hidden>
         <h1 class="end-title"></h1>
@@ -90,6 +108,7 @@ export class Hud {
     this.joyKnob = q('.joyknob');
     this.levelup = q('.levelup');
     this.cards = q('.cards');
+    this.lvlActions = q('.lvl-actions');
     this.end = q('.end');
     this.endTitle = q('.end-title');
     this.endStats = q('.end-stats');
@@ -129,16 +148,67 @@ export class Hud {
     }
   }
 
-  showLevelUp(opts: LevelOption[], onPick: (o: LevelOption) => void): void {
+  showLevelUp(view: LevelUpView, h: LevelUpHandlers): void {
     this.cards.innerHTML = '';
-    for (const o of opts) {
-      const card = document.createElement('button');
-      card.className = `card ${o.kind.startsWith('weapon') ? 'wpn' : o.kind === 'heal' ? 'heal' : 'pas'}`;
-      card.setAttribute('data-ui', '');
-      card.innerHTML = `<div class="card-ico">${o.icon}</div><div class="card-title">${o.title}</div><div class="card-sub">${o.sub}</div>`;
-      card.onclick = () => onPick(o);
-      this.cards.appendChild(card);
+    for (const o of view.options) {
+      const wrap = document.createElement('div');
+      const locked = !!o.id && o.id === view.lockedId;
+      wrap.className = `card ${o.kind.startsWith('weapon') ? 'wpn' : o.kind === 'heal' ? 'heal' : 'pas'}${locked ? ' locked' : ''}`;
+
+      const pick = document.createElement('button');
+      pick.className = 'card-pick';
+      pick.setAttribute('data-ui', '');
+      pick.innerHTML = `<div class="card-ico">${o.icon}</div><div class="card-title">${o.title}</div><div class="card-sub">${o.sub}</div>`;
+      pick.onclick = () => h.pick(o);
+      wrap.appendChild(pick);
+
+      // Per-card controls: lock (keep on reroll) and banish (drop from this run).
+      if (o.kind !== 'heal' && o.id) {
+        const ctrls = document.createElement('div');
+        ctrls.className = 'card-ctrls';
+        const lock = document.createElement('button');
+        lock.className = `card-ctrl lock${locked ? ' on' : ''}`;
+        lock.setAttribute('data-ui', '');
+        lock.title = locked ? 'Locked (kept on reroll)' : 'Lock this card';
+        lock.textContent = '🔒';
+        lock.onclick = (e) => {
+          e.stopPropagation();
+          h.lock(o);
+        };
+        ctrls.appendChild(lock);
+        if ((o.kind === 'weapon-new' || o.kind === 'passive-new') && view.banishes > 0) {
+          const ban = document.createElement('button');
+          ban.className = 'card-ctrl banish';
+          ban.setAttribute('data-ui', '');
+          ban.title = 'Banish from this run';
+          ban.textContent = '✕';
+          ban.onclick = (e) => {
+            e.stopPropagation();
+            h.banish(o);
+          };
+          ctrls.appendChild(ban);
+        }
+        wrap.appendChild(ctrls);
+      }
+      this.cards.appendChild(wrap);
     }
+
+    // Reroll action (disabled at 0 charges).
+    this.lvlActions.innerHTML = '';
+    const reroll = document.createElement('button');
+    reroll.className = 'lvl-reroll';
+    reroll.setAttribute('data-ui', '');
+    reroll.disabled = view.rerolls <= 0;
+    reroll.innerHTML = `🎲 Reroll <b>${view.rerolls}</b>`;
+    reroll.onclick = () => h.reroll();
+    this.lvlActions.appendChild(reroll);
+    if (view.banishes > 0) {
+      const hint = document.createElement('span');
+      hint.className = 'lvl-hint';
+      hint.textContent = `✕ banish ${view.banishes}`;
+      this.lvlActions.appendChild(hint);
+    }
+
     this.levelup.hidden = false;
   }
 

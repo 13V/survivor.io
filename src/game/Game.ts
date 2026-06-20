@@ -151,6 +151,12 @@ const PACK_MAX = 11;
 const PACK_ON_SURGE = 0.7; // chance a given surge is led by a pack
 const PACK_SPREAD = 95; // cluster radius around the pack's head
 
+// ---- Level-up draft agency ------------------------------------------------
+// Per-run budgets for re-drawing / pruning the level-up offer (the genre's
+// reroll/banish/lock trio), refreshed each run.
+const REROLLS_PER_RUN = 3;
+const BANISHES_PER_RUN = 3;
+
 
 export class Game {
   private world: IWorld = createWorld();
@@ -202,6 +208,13 @@ export class Game {
   private level = 1;
   // Per-run achievement counters, committed to the meta profile in end().
   private runStats = { crits: 0, eliteKills: 0, bossKills: 0, evolutions: 0, tookDamage: false };
+  // Level-up draft state: remaining reroll/banish charges, this run's banished
+  // pool, the currently locked card, and the live offer.
+  private rerolls = REROLLS_PER_RUN;
+  private banishes = BANISHES_PER_RUN;
+  private banished = new Set<string>();
+  private draftLockedId: string | null = null;
+  private draftOptions: LevelOption[] = [];
   private xp = 0;
   private xpNext = C.xpForLevel(1);
   private spawnAcc = 0;
@@ -1945,7 +1958,55 @@ export class Game {
     this.flash('#9bbcff', 0.22);
     this.state = 'paused';
     this.input.enabled = false;
-    this.hud.showLevelUp(this.buildOptions(), (o) => this.applyOption(o));
+    this.draftLockedId = null;
+    this.regenDraft();
+    this.renderDraft();
+  }
+
+  // Build the current offer, preserving a locked card and re-drawing the rest.
+  private regenDraft(): void {
+    const locked = this.draftLockedId
+      ? (this.draftOptions.find((o) => o.id === this.draftLockedId) ?? null)
+      : null;
+    const fresh = this.buildOptions();
+    const out: LevelOption[] = [];
+    if (locked) out.push(locked);
+    for (const o of fresh) {
+      if (out.length >= 3) break;
+      if (locked && o.id && o.id === locked.id) continue;
+      out.push(o);
+    }
+    while (out.length < 3) out.push({ kind: 'heal', title: 'Field Ration', sub: 'Restore 40 HP', icon: '❤' });
+    this.draftOptions = out;
+  }
+
+  private renderDraft(): void {
+    this.hud.showLevelUp(
+      { options: this.draftOptions, rerolls: this.rerolls, banishes: this.banishes, lockedId: this.draftLockedId },
+      {
+        pick: (o) => this.applyOption(o),
+        reroll: () => {
+          if (this.rerolls <= 0) return;
+          this.rerolls--;
+          this.regenDraft();
+          this.renderDraft();
+          audio.pickup();
+        },
+        banish: (o) => {
+          if (this.banishes <= 0 || !o.id) return;
+          this.banishes--;
+          this.banished.add(o.id);
+          if (this.draftLockedId === o.id) this.draftLockedId = null;
+          this.regenDraft();
+          this.renderDraft();
+          audio.pickup();
+        },
+        lock: (o) => {
+          this.draftLockedId = this.draftLockedId === o.id ? null : (o.id ?? null);
+          this.renderDraft();
+        },
+      },
+    );
   }
 
   private buildOptions(): LevelOption[] {
@@ -1967,13 +2028,13 @@ export class Game {
     }
     if (this.weapons.length < MAX_WEAPONS) {
       for (const id in WEAPONS) {
-        if (!this.ownedWeapons.has(id) && !WEAPONS[id].hidden && meta.isWeaponUnlocked(id))
+        if (!this.ownedWeapons.has(id) && !WEAPONS[id].hidden && meta.isWeaponUnlocked(id) && !this.banished.has(id))
           opts.push({ kind: 'weapon-new', id, title: `${WEAPONS[id].name}`, sub: WEAPONS[id].desc, icon: WEAPONS[id].icon });
       }
     }
     if (this.passives.size < MAX_PASSIVES) {
       for (const id in PASSIVES) {
-        if (!this.passives.has(id))
+        if (!this.passives.has(id) && !this.banished.has(id))
           opts.push({ kind: 'passive-new', id, title: `${PASSIVES[id].name}`, sub: PASSIVES[id].desc, icon: PASSIVES[id].icon });
       }
     }
@@ -2013,8 +2074,10 @@ export class Game {
     this.xp -= this.xpNext;
     this.level++;
     this.xpNext = C.xpForLevel(this.level);
+    this.draftLockedId = null; // a lock only holds across rerolls within one level-up
     if (this.xp >= this.xpNext) {
-      this.hud.showLevelUp(this.buildOptions(), (n) => this.applyOption(n));
+      this.regenDraft();
+      this.renderDraft();
     } else {
       this.hud.hideLevelUp();
       this.state = 'play';
@@ -2164,6 +2227,11 @@ export class Game {
     this.time = 0;
     this.kills = 0;
     this.runStats = { crits: 0, eliteKills: 0, bossKills: 0, evolutions: 0, tookDamage: false };
+    this.rerolls = REROLLS_PER_RUN;
+    this.banishes = BANISHES_PER_RUN;
+    this.banished.clear();
+    this.draftLockedId = null;
+    this.draftOptions = [];
     this.level = 1;
     this.xp = 0;
     this.xpNext = C.xpForLevel(1);

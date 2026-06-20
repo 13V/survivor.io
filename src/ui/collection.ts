@@ -1,7 +1,7 @@
 // Between-runs Collection / Achievements screen. Shows the weapon arsenal (earned
 // vs locked silhouettes with their unlock hint) and the achievement ladder with
 // live progress bars — the completionist surface that drives "one more run".
-import { WEAPONS } from '../game/data';
+import { WEAPONS, PASSIVES, EVOLUTIONS } from '../game/data';
 import { meta } from '../meta/save';
 import { ACHIEVEMENTS, allUnlockableWeapons } from '../meta/achievements';
 
@@ -48,6 +48,16 @@ const CSS = `
 .ca-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); margin-top: 4px; overflow: hidden; }
 .ca-bar > i { display: block; height: 100%; background: #46d17a; border-radius: 3px; }
 .ca-num { font-size: 11px; opacity: 0.8; min-width: 54px; text-align: right; }
+.col-evos { display: flex; flex-direction: column; gap: 5px; }
+.col-evo {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  background: rgba(20,26,38,0.6); border-radius: 8px; padding: 6px 10px; font-size: 12px;
+}
+.col-evo.locked { opacity: 0.5; }
+.col-evo .ev-w { font-weight: 700; }
+.col-evo .ev-cat { color: #9be7ff; }
+.col-evo .ev-res { font-weight: 700; color: #ffd24a; margin-left: auto; }
+.col-evo .ev-op { opacity: 0.5; }
 .col-done { align-self: center; margin-top: 8px; }
 `;
 
@@ -117,6 +127,21 @@ export class CollectionScreen {
       html += `<div class="col-ach${a.done ? ' done' : ''}"><span class="ca-ico">${ico}</span><div class="ca-body"><div class="ca-name">${name}${rew}</div><div class="ca-desc">${desc}</div><div class="ca-bar"><i style="width:${pct}%"></i></div></div><span class="ca-num">${num}</span></div>`;
     }
     html += `</div>`;
+
+    // Evolution codex: base weapon + catalyst -> evolved form. Recipes whose base
+    // weapon you haven't unlocked yet are dimmed.
+    html += `<h2>EVOLUTIONS</h2><div class="col-sub">max a weapon + hold its catalyst</div>`;
+    html += `<div class="col-evos">`;
+    for (const r of EVOLUTIONS) {
+      const base = WEAPONS[r.base];
+      const result = WEAPONS[r.result];
+      if (!base || !result) continue;
+      const cat = r.catalyst.kind === 'passive' ? PASSIVES[r.catalyst.id] : WEAPONS[r.catalyst.id];
+      const known = meta.isWeaponUnlocked(r.base);
+      html += `<div class="col-evo${known ? '' : ' locked'}"><span class="ev-w">${base.icon} ${base.name}</span><span class="ev-op">+</span><span class="ev-cat">${cat?.icon ?? '✦'} ${cat?.name ?? r.catalyst.id}</span><span class="ev-op">→</span><span class="ev-res">${known ? `${result.icon} ${result.name}` : '🔒 ???'}</span></div>`;
+    }
+    html += `</div>`;
+
     html += `<button class="btn col-done" data-ui>Done</button></div>`;
 
     this.overlay.innerHTML = html;

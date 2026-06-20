@@ -339,6 +339,14 @@ class AudioEngine {
     });
   }
 
+  // Rising two-tone "incoming horde" siren that precedes a street surge.
+  surgeWarn(): void {
+    if (!this.ready) return;
+    this.blip({ type: 'square', freq: 300, freqEnd: 600, dur: 0.5, gain: 0.1, attack: 0.02 });
+    this.blip({ type: 'sawtooth', freq: 150, freqEnd: 300, dur: 0.55, gain: 0.07, attack: 0.02, detune: 5 });
+    this.noiseHit({ dur: 0.45, gain: 0.06, type: 'bandpass', freq: 820, freqEnd: 520, q: 6 });
+  }
+
   playerHurt(): void {
     if (!this.ready) return;
     // Harsh descending buzz — clearly "bad".

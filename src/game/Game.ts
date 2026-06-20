@@ -115,6 +115,21 @@ const ISO_TILE = 96;
 const ISO_DIAMOND_W = ISO_TILE * ISO_K * 2; // 128
 const ISO_DIAMOND_H = ISO_TILE * ISO_K; // 64
 
+// ---- Horde surge director -------------------------------------------------
+// The horde breathes: a calm baseline trickle (LULL) from all sides, then a telegraphed
+// SURGE that pours a dense column out of one avenue toward the player, then back to lull.
+// Spawn rate during each phase = base director rate × the phase multiplier.
+const SURGE_LULL_MIN = 9; // s — calm window length (randomised)
+const SURGE_LULL_MAX = 14;
+const SURGE_TELE_DUR = 1.7; // s — warning before the column arrives
+const SURGE_DUR_MIN = 5.5; // s — how long the column pours
+const SURGE_DUR_MAX = 7.5;
+const SURGE_RATE_LULL = 0.8; // ×base during the lull
+const SURGE_RATE_TELE = 0.35; // ×base during the telegraph (near-quiet)
+const SURGE_RATE_SURGE = 3.4; // ×base during the surge (the wall of flesh)
+type SurgePhase = 'lull' | 'tele' | 'surge';
+
+
 export class Game {
   private world: IWorld = createWorld();
   private tex: Textures;
@@ -163,6 +178,10 @@ export class Game {
   private xp = 0;
   private xpNext = C.xpForLevel(1);
   private spawnAcc = 0;
+  private surgePhase: SurgePhase = 'lull';
+  private surgeTimer = SURGE_LULL_MIN;
+  private surgeDir = 0; // world angle the active/incoming surge pours from
+  private surgeGlow: Sprite | null = null; // directional screen-edge warning
   private bossSpawned = false;
   private bossEid = -1;
   private win = false;
@@ -289,6 +308,7 @@ export class Game {
       this.app.stage.filters = [grade];
       this.app.stage.filterArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
     }
+    this.makeSurgeGlow();
 
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
     this.zombies = this.tex.zombies ?? null;
@@ -479,6 +499,28 @@ export class Game {
     v.height = this.app.screen.height;
     this.app.stage.addChild(v); // above the world, below the DOM HUD
     this.vignette = v;
+  }
+
+  // Soft red radial glow, parked off the incoming edge during a surge telegraph so a wash of
+  // red bleeds in from the side the horde is about to pour from. Alpha is driven per frame.
+  private makeSurgeGlow(): void {
+    const cv = document.createElement('canvas');
+    cv.width = 256;
+    cv.height = 256;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+    const grd = ctx.createRadialGradient(128, 128, 10, 128, 128, 128);
+    grd.addColorStop(0, 'rgba(255,40,40,0.85)');
+    grd.addColorStop(0.5, 'rgba(200,20,20,0.35)');
+    grd.addColorStop(1, 'rgba(160,0,0,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, 256, 256);
+    const g = new Sprite(Texture.from(cv));
+    g.anchor.set(0.5);
+    g.alpha = 0;
+    g.visible = false;
+    this.app.stage.addChild(g); // above the world + vignette, below the DOM HUD
+    this.surgeGlow = g;
   }
 
   private makeGroundTexture(): Texture {
@@ -1147,20 +1189,78 @@ export class Game {
   }
 
   private spawnDirector(dt: number): void {
-    if (this.bossSpawned) return;
-    const rate = (this.stage.spawnBase + this.time * this.stage.spawnRamp) * 1.8;
-    this.spawnAcc += dt * rate;
+    if (this.bossSpawned) {
+      if (this.surgeGlow) {
+        this.surgeGlow.alpha = 0;
+        this.surgeGlow.visible = false;
+      }
+      return;
+    }
+    // Advance the lull -> telegraph -> surge cycle.
+    this.surgeTimer -= dt;
+    if (this.surgeTimer <= 0) this.advanceSurgePhase();
+    this.updateSurgeWarn(dt);
+
+    const base = this.stage.spawnBase + this.time * this.stage.spawnRamp;
+    const mult =
+      this.surgePhase === 'surge' ? SURGE_RATE_SURGE : this.surgePhase === 'tele' ? SURGE_RATE_TELE : SURGE_RATE_LULL;
+    this.spawnAcc += dt * base * mult;
     let count = enemyQuery(this.world).length;
     const cap = 900;
+    const surging = this.surgePhase === 'surge';
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
       if (count >= cap) continue;
-      this.spawnOne();
+      // During a surge the column pours from one avenue; otherwise an ambient ring trickle.
+      if (surging) this.spawnOne(this.surgeDir, Math.PI / 7);
+      else this.spawnOne();
       count++;
     }
   }
 
-  private spawnOne(): void {
+  // Step the surge cycle and arm the next phase's duration + (for telegraph) its direction.
+  private advanceSurgePhase(): void {
+    if (this.surgePhase === 'lull') {
+      this.surgePhase = 'tele';
+      this.surgeTimer = SURGE_TELE_DUR;
+      this.surgeDir = rand(0, Math.PI * 2); // the avenue the column will pour from
+      audio.surgeWarn();
+    } else if (this.surgePhase === 'tele') {
+      this.surgePhase = 'surge';
+      this.surgeTimer = rand(SURGE_DUR_MIN, SURGE_DUR_MAX);
+    } else {
+      this.surgePhase = 'lull';
+      this.surgeTimer = rand(SURGE_LULL_MIN, SURGE_LULL_MAX);
+    }
+  }
+
+  // Drive the directional red edge-glow: rising through the telegraph, fading across the surge.
+  private updateSurgeWarn(dt: number): void {
+    const g = this.surgeGlow;
+    if (!g) return;
+    let target = 0;
+    if (this.surgePhase === 'tele') target = 1 - Math.max(0, this.surgeTimer) / SURGE_TELE_DUR; // 0 -> 1
+    else if (this.surgePhase === 'surge') target = Math.max(0, this.surgeTimer) / SURGE_DUR_MAX * 0.5; // lingering wash
+    g.alpha += (target - g.alpha) * Math.min(1, dt * 6);
+    g.visible = g.alpha > 0.01;
+    if (!g.visible) return;
+    // Park the glow just off the screen edge on the side the surge pours from (iso-projected dir).
+    const W = this.app.screen.width;
+    const H = this.app.screen.height;
+    const c = Math.cos(this.surgeDir);
+    const s = Math.sin(this.surgeDir);
+    let ex = (c - s) * ISO_K; // screen-space direction of the world surge vector
+    let ey = (c + s) * (ISO_K * 0.5);
+    const el = Math.hypot(ex, ey) || 1;
+    ex /= el;
+    ey /= el;
+    g.position.set(W / 2 + ex * W * 0.62, H / 2 + ey * H * 0.62);
+    const scale = (Math.max(W, H) * 1.5) / 256;
+    g.scale.set(scale);
+  }
+
+  // Pick a director-eligible (non-boss, time-gated) enemy kind by weight.
+  private pickEnemyKind(): number {
     const t = this.time;
     let total = 0;
     for (let i = 0; i < ENEMY_DEFS.length; i++) {
@@ -1168,27 +1268,60 @@ export class Game {
       if (d.boss || (d.spawn?.minTime ?? 0) > t) continue;
       total += d.spawn?.weight ?? 1;
     }
-    let kind = 0;
-    if (total > 0) {
-      let roll = Math.random() * total;
-      for (let i = 0; i < ENEMY_DEFS.length; i++) {
-        const d = ENEMY_DEFS[i];
-        if (d.boss || (d.spawn?.minTime ?? 0) > t) continue;
-        roll -= d.spawn?.weight ?? 1;
-        if (roll <= 0) {
-          kind = i;
-          break;
+    if (total <= 0) return 0;
+    let roll = Math.random() * total;
+    for (let i = 0; i < ENEMY_DEFS.length; i++) {
+      const d = ENEMY_DEFS[i];
+      if (d.boss || (d.spawn?.minTime ?? 0) > t) continue;
+      roll -= d.spawn?.weight ?? 1;
+      if (roll <= 0) return i;
+    }
+    return 0;
+  }
+
+  // Is this world cell part of an avenue (vs sidewalk/lot/building)? Mirrors cityCell's road test.
+  private isStreet(col: number, row: number): boolean {
+    const B = 9;
+    const RW = 3;
+    const cx = ((col % B) + B) % B;
+    const cy = ((row % B) + B) % B;
+    return cx < RW || cy < RW;
+  }
+
+  // Nearest avenue cell to (col,row) by an outward ring search (so off-screen spawns land on roads).
+  private nearestStreetCell(col: number, row: number): [number, number] {
+    if (this.isStreet(col, row)) return [col, row];
+    for (let r = 1; r <= 7; r++) {
+      for (let dc = -r; dc <= r; dc++) {
+        for (let dr = -r; dr <= r; dr++) {
+          if (Math.max(Math.abs(dc), Math.abs(dr)) !== r) continue;
+          if (this.isStreet(col + dc, row + dr)) return [col + dc, row + dr];
         }
       }
     }
-    const R = Math.max(this.app.screen.width, this.app.screen.height) / 2 + 90;
+    return [col, row];
+  }
+
+  // Spawn one mob off-screen. With no args it's an ambient ring spawn; given a direction it lands
+  // on the avenue in that direction (snapped to a road cell) so the surge funnels down the street.
+  private spawnOne(dir?: number, spread = Math.PI * 2): void {
+    const kind = this.pickEnemyKind();
+    const R = Math.max(this.app.screen.width, this.app.screen.height) / 2 + 110;
     let sx = this.player.x;
     let sy = this.player.y;
-    for (let tries = 0; tries < 8; tries++) {
-      const ang = rand(0, Math.PI * 2);
-      sx = this.player.x + Math.cos(ang) * R;
-      sy = this.player.y + Math.sin(ang) * R;
-      if (!this.blockedCity(sx, sy)) break; // spawn on a street, not inside a building
+    for (let tries = 0; tries < 10; tries++) {
+      const ang = dir === undefined ? rand(0, Math.PI * 2) : dir + rand(-spread / 2, spread / 2);
+      let px = this.player.x + Math.cos(ang) * R;
+      let py = this.player.y + Math.sin(ang) * R;
+      if (dir !== undefined) {
+        // snap to the nearest avenue so the column appears to march out of the street
+        const [col, row] = this.nearestStreetCell(Math.round(px / ISO_TILE), Math.round(py / ISO_TILE));
+        px = col * ISO_TILE + rand(-ISO_TILE * 0.3, ISO_TILE * 0.3);
+        py = row * ISO_TILE + rand(-ISO_TILE * 0.3, ISO_TILE * 0.3);
+      }
+      sx = px;
+      sy = py;
+      if (!this.blockedCity(sx, sy)) break; // never spawn inside a building
     }
     this.spawnEnemy(kind, sx, sy);
   }
@@ -1812,6 +1945,13 @@ export class Game {
     this.xp = 0;
     this.xpNext = C.xpForLevel(1);
     this.spawnAcc = 0;
+    this.surgePhase = 'lull';
+    this.surgeTimer = rand(SURGE_LULL_MIN, SURGE_LULL_MAX); // ease in before the first surge
+    this.surgeDir = 0;
+    if (this.surgeGlow) {
+      this.surgeGlow.alpha = 0;
+      this.surgeGlow.visible = false;
+    }
     this.bossSpawned = false;
     this.bossEid = -1;
     this.win = false;

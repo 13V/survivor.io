@@ -14,6 +14,7 @@ export const Enemy = defineComponent({
   xp: Types.f32,
   flash: Types.f32, // hit-flash timer
   boss: Types.ui8,
+  elite: Types.ui8, // 1 = buffed pack-leader (bigger, tankier, bonus XP, aura)
   atkCd: Types.f32, // boss special-attack cooldown
   knock: Types.f32, // knockback velocity decay
   knx: Types.f32,

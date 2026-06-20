@@ -14,7 +14,10 @@ export const BOSS_TIME = 90; // boss spawns / final push (s)
 
 // Difficulty ramp: enemy stat multiplier grows with elapsed time.
 export function difficultyMul(t: number): number {
-  return 1 + (t / 60) * 0.65;
+  // Accelerating ramp: a linear floor plus a quadratic term so late-run pressure visibly
+  // builds in felt steps rather than a flat drizzle (≈1.0 at 0:00, ≈1.8 at 1:00, ≈3.0 at 2:00).
+  const m = t / 60;
+  return 1 + m * 0.7 + m * m * 0.14;
 }
 
 // XP needed to reach the next level (1-indexed level).

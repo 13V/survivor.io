@@ -137,6 +137,20 @@ const SEP_PUSH = 110; // overlap (0..1 per neighbour) -> push speed (px/s) befor
 const SEP_CAP_K = 1.15; // cap the separation speed at this × the mob's own move speed
 const SEP_PAD = 2; // start nudging apart a hair before centres actually touch
 
+// ---- Packs & elites -------------------------------------------------------
+// A surge is often spearheaded by a tight pack of one type led by a buffed "elite": bigger,
+// far tankier, a touch faster, glowing, and worth a fat XP payout when it drops.
+const ELITE_HP_MUL = 7;
+const ELITE_DMG_MUL = 1.5;
+const ELITE_SPD_MUL = 1.12;
+const ELITE_RADIUS_MUL = 1.5;
+const ELITE_XP_MUL = 10; // pushes XP over the gold-gem threshold -> chunky reward
+const ELITE_TINT = 0xff7a7a; // hot crimson cast so elites read as dangerous
+const PACK_MIN = 6; // followers clustered around the elite
+const PACK_MAX = 11;
+const PACK_ON_SURGE = 0.7; // chance a given surge is led by a pack
+const PACK_SPREAD = 95; // cluster radius around the pack's head
+
 
 export class Game {
   private world: IWorld = createWorld();
@@ -147,6 +161,8 @@ export class Game {
   private hash = new SpatialHash(120);
   private cand: number[] = [];
   private sepCand: number[] = []; // scratch for crowd-separation neighbor queries
+  private auraPool: Sprite[] = []; // pooled ground-glows drawn under live elites
+  private eliteAuraTex: Texture | null = null;
   private ctx!: WeaponContext;
 
   private spr: (Sprite | undefined)[] = [];
@@ -318,6 +334,7 @@ export class Game {
       this.app.stage.filterArea = new Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
     }
     this.makeSurgeGlow();
+    this.eliteAuraTex = this.makeEliteAuraTex();
 
     this.playerWalk = this.tex.anim?.player?.length ? this.tex.anim.player : null;
     this.zombies = this.tex.zombies ?? null;
@@ -530,6 +547,23 @@ export class Game {
     g.visible = false;
     this.app.stage.addChild(g); // above the world + vignette, below the DOM HUD
     this.surgeGlow = g;
+  }
+
+  // Soft crimson radial used as the ground-glow under elite pack leaders.
+  private makeEliteAuraTex(): Texture {
+    const cv = document.createElement('canvas');
+    cv.width = 128;
+    cv.height = 128;
+    const ctx = cv.getContext('2d');
+    if (ctx) {
+      const grd = ctx.createRadialGradient(64, 64, 4, 64, 64, 64);
+      grd.addColorStop(0, 'rgba(255,90,90,0.85)');
+      grd.addColorStop(0.45, 'rgba(255,40,40,0.4)');
+      grd.addColorStop(1, 'rgba(200,0,0,0)');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, 128, 128);
+    }
+    return Texture.from(cv);
   }
 
   private makeGroundTexture(): Texture {
@@ -855,23 +889,27 @@ export class Game {
   }
 
   // ---- entity factories -----------------------------------------------------
-  private spawnEnemy(kind: number, x: number, y: number): number {
+  private spawnEnemy(kind: number, x: number, y: number, opts?: { elite?: boolean }): number {
     const def = ENEMY_DEFS[kind];
     const dmul = C.difficultyMul(this.time);
+    const elite = !!opts?.elite && !def.boss; // bosses are never re-tagged as elites
+    const hpK = elite ? ELITE_HP_MUL : 1;
+    const radius = def.radius * (elite ? ELITE_RADIUS_MUL : 1);
     const eid = addEntity(this.world);
     addComponent(this.world, Position, eid);
     addComponent(this.world, Velocity, eid);
     addComponent(this.world, Enemy, eid);
     Position.x[eid] = x;
     Position.y[eid] = y;
-    Enemy.speed[eid] = def.speed;
-    Enemy.hp[eid] = def.hp * dmul * this.stage.enemyHpMul;
-    Enemy.maxHp[eid] = def.hp * dmul * this.stage.enemyHpMul;
-    Enemy.dmg[eid] = def.dmg * dmul * this.stage.enemyDmgMul;
-    Enemy.radius[eid] = def.radius;
+    Enemy.speed[eid] = def.speed * (elite ? ELITE_SPD_MUL : 1);
+    Enemy.hp[eid] = def.hp * dmul * this.stage.enemyHpMul * hpK;
+    Enemy.maxHp[eid] = def.hp * dmul * this.stage.enemyHpMul * hpK;
+    Enemy.dmg[eid] = def.dmg * dmul * this.stage.enemyDmgMul * (elite ? ELITE_DMG_MUL : 1);
+    Enemy.radius[eid] = radius;
     Enemy.kind[eid] = kind;
-    Enemy.xp[eid] = def.xp;
+    Enemy.xp[eid] = def.xp * (elite ? ELITE_XP_MUL : 1);
     Enemy.flash[eid] = 0;
+    Enemy.elite[eid] = elite ? 1 : 0;
     Enemy.boss[eid] = def.boss ? 1 : 0;
     Enemy.atkCd[eid] = def.boss
       ? (def.bossAttack?.interval ?? 2.6)
@@ -891,7 +929,7 @@ export class Game {
       if (za) {
         const s = this.acquireSprite(za.run.frames[2][0]); // row 2 = facing south
         s.anchor.set(0.5, za.run.anchorY);
-        s.scale.set((def.radius * Z_DISPLAY_K) / ORIG_CELL);
+        s.scale.set((radius * Z_DISPLAY_K) / ORIG_CELL);
         this.spr[eid] = s;
         this.enemyZ[eid] = za;
         this.enemyAtk[eid] = (Math.random() * 5) | 0;
@@ -915,7 +953,7 @@ export class Game {
         ? this.tex.boss
         : this.tex.enemy[def.texKind];
     const s = this.acquireSprite(baseTex);
-    s.scale.set(def.radius / ENEMY_BASE_R[sizeKind]);
+    s.scale.set(radius / ENEMY_BASE_R[sizeKind]);
     this.spr[eid] = s;
     let frames: Texture[] | undefined;
     if (anim) {
@@ -1215,7 +1253,7 @@ export class Game {
       this.surgePhase === 'surge' ? SURGE_RATE_SURGE : this.surgePhase === 'tele' ? SURGE_RATE_TELE : SURGE_RATE_LULL;
     this.spawnAcc += dt * base * mult;
     let count = enemyQuery(this.world).length;
-    const cap = 900;
+    const cap = 1000;
     const surging = this.surgePhase === 'surge';
     while (this.spawnAcc >= 1) {
       this.spawnAcc -= 1;
@@ -1237,6 +1275,8 @@ export class Game {
     } else if (this.surgePhase === 'tele') {
       this.surgePhase = 'surge';
       this.surgeTimer = rand(SURGE_DUR_MIN, SURGE_DUR_MAX);
+      // Many surges are spearheaded by an elite-led pack pouring out of the same avenue.
+      if (Math.random() < PACK_ON_SURGE) this.spawnPack(this.surgeDir);
     } else {
       this.surgePhase = 'lull';
       this.surgeTimer = rand(SURGE_LULL_MIN, SURGE_LULL_MAX);
@@ -1266,6 +1306,36 @@ export class Game {
     g.position.set(W / 2 + ex * W * 0.62, H / 2 + ey * H * 0.62);
     const scale = (Math.max(W, H) * 1.5) / 256;
     g.scale.set(scale);
+  }
+
+  // Park a pulsing crimson ground-glow under each live elite (pooled; follows the query so a
+  // dead elite simply stops getting one — no per-entity lifecycle bookkeeping).
+  private updateEliteAuras(): void {
+    const tex = this.eliteAuraTex;
+    if (!tex) return;
+    const pulse = 0.82 + Math.sin(this.time * 5) * 0.18;
+    let i = 0;
+    for (const e of enemyQuery(this.world)) {
+      if (!Enemy.elite[e]) continue;
+      let a = this.auraPool[i];
+      if (!a) {
+        a = new Sprite(tex);
+        a.anchor.set(0.5);
+        a.blendMode = 'add';
+        this.worldC.addChild(a);
+        this.auraPool[i] = a;
+      }
+      a.visible = true;
+      const ex = Position.x[e];
+      const ey = Position.y[e];
+      a.position.set((ex - ey) * ISO_K, (ex + ey) * (ISO_K * 0.5));
+      a.zIndex = ex + ey - 1; // just under the elite it haloes
+      const sx = (Enemy.radius[e] * 3.0 * pulse) / 64;
+      a.scale.set(sx, sx * 0.5); // squashed to read as a glow on the iso ground
+      a.alpha = 0.55 * pulse;
+      i++;
+    }
+    for (let k = i; k < this.auraPool.length; k++) this.auraPool[k].visible = false;
   }
 
   // Pick a director-eligible (non-boss, time-gated) enemy kind by weight.
@@ -1333,6 +1403,35 @@ export class Game {
       if (!this.blockedCity(sx, sy)) break; // never spawn inside a building
     }
     this.spawnEnemy(kind, sx, sy);
+  }
+
+  // Off-screen point in `dir`, snapped onto the nearest avenue (the head of a column/pack).
+  private streetEdgePoint(dir: number): [number, number] {
+    const R = Math.max(this.app.screen.width, this.app.screen.height) / 2 + 130;
+    const ang = dir + rand(-Math.PI / 10, Math.PI / 10);
+    const px = this.player.x + Math.cos(ang) * R;
+    const py = this.player.y + Math.sin(ang) * R;
+    const [col, row] = this.nearestStreetCell(Math.round(px / ISO_TILE), Math.round(py / ISO_TILE));
+    return [col * ISO_TILE, row * ISO_TILE];
+  }
+
+  // Spawn a tight pack of one type led by a buffed elite, marching out of the avenue in `dir`.
+  private spawnPack(dir: number): void {
+    const kind = this.pickEnemyKind();
+    const [cx, cy] = this.streetEdgePoint(dir);
+    this.spawnEnemy(kind, cx, cy, { elite: true }); // the champion at the column head
+    const n = (rand(PACK_MIN, PACK_MAX + 1) | 0);
+    for (let i = 0; i < n; i++) {
+      const a = rand(0, Math.PI * 2);
+      const r = rand(18, PACK_SPREAD);
+      let px = cx + Math.cos(a) * r;
+      let py = cy + Math.sin(a) * r;
+      if (this.blockedCity(px, py)) {
+        px = cx;
+        py = cy;
+      }
+      this.spawnEnemy(kind, px, py);
+    }
   }
 
   private bossCheck(): void {
@@ -1550,6 +1649,13 @@ export class Game {
       const kind = Enemy.xp[e] >= 50 ? 2 : Enemy.kind[e] === 2 ? 1 : 0;
       if (Math.random() < 0.04) this.spawnGem(Position.x[e], Position.y[e], 0, 3);
       else this.spawnGem(Position.x[e], Position.y[e], Enemy.xp[e], kind);
+      // Elite payout: the big gold gem (from the XP buff) plus a crimson pop, a heal drop, and a
+      // small shock so dropping a pack-leader reads as an event.
+      if (Enemy.elite[e]) {
+        this.spawnGem(Position.x[e], Position.y[e], 0, 3); // guaranteed heal
+        this.particles.ring(Position.x[e], Position.y[e], ELITE_TINT, 90);
+        this.addShake(5);
+      }
       if (Enemy.boss[e]) this.win = true;
       if (ENEMY_DEFS[Enemy.kind[e]].explodeOnDeath) {
         const hx = Position.x[e];
@@ -1566,7 +1672,7 @@ export class Game {
         Position.x[e],
         Position.y[e],
         ENEMY_DEFS[Enemy.kind[e]].tint ?? 0xffffff,
-        Enemy.boss[e] ? 48 : 12,
+        Enemy.boss[e] ? 48 : Enemy.elite[e] ? 28 : 12,
       );
       const died = this.playZombieDeath(e); // hand the sprite to its Die animation if any
       if (!died) {
@@ -2233,7 +2339,7 @@ export class Game {
         // HD zombie: 8-direction facing via 5 stored rows + horizontal mirror. Swing the
         // Attack cycle when in reach, else shamble (Walk) or run by speed. Per-entity
         // frame offset + attack variant keep the horde from marching in lockstep.
-        s.tint = Enemy.flash[e] > 0 ? 0xff7777 : 0xffffff;
+        s.tint = Enemy.flash[e] > 0 ? 0xff7777 : Enemy.elite[e] ? ELITE_TINT : 0xffffff;
         const dx = p.x - ex;
         const dy = p.y - ey;
         const m = dir5(dirRow(Math.atan2(dy, dx)));
@@ -2270,9 +2376,11 @@ export class Game {
       s.tint =
         Enemy.flash[e] > 0
           ? 0xff7777
-          : this.artUpright
-            ? 0xffffff
-            : (ENEMY_DEFS[k].tint ?? 0xffffff);
+          : Enemy.elite[e]
+            ? ELITE_TINT
+            : this.artUpright
+              ? 0xffffff
+              : (ENEMY_DEFS[k].tint ?? 0xffffff);
       // upright top-down art: stay level, face the player by horizontal mirror
       if (this.artUpright)
         s.scale.x = p.x < Position.x[e] ? -Math.abs(s.scale.x) : Math.abs(s.scale.x);
@@ -2280,6 +2388,7 @@ export class Game {
       const fr = this.enemyWalk[e];
       if (fr) s.texture = fr[(this.animFrame + e) % fr.length];
     }
+    this.updateEliteAuras();
     for (const e of projQuery(this.world)) {
       const s = this.spr[e];
       if (s) {

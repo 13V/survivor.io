@@ -2253,20 +2253,50 @@ export class Game {
       won: this.win,
       noHit: !this.runStats.tookDamage,
     });
+    const pay = this.awardCoins();
     const mm = Math.floor(this.time / 60);
     const ss = Math.floor(this.time % 60);
     this.hud.showEnd(
       title,
       `Time ${mm}:${ss.toString().padStart(2, '0')}   ·   Kills ${this.kills}   ·   Level ${this.level}`,
       () => this.reset(),
-      this.buildEndReveal(result),
+      this.buildEndReveal(result, pay),
     );
+  }
+
+  // Salvage payout: every run banks coins by performance, feeding the shop so
+  // even a losing run advances the meta. Returns the itemised breakdown.
+  private awardCoins(): { total: number; rows: { label: string; val: number }[] } {
+    const rows: { label: string; val: number }[] = [];
+    const kc = Math.floor(this.kills * 0.5);
+    const tc = Math.floor(this.time * 0.4);
+    const lc = this.level * 5;
+    const bc = this.runStats.bossKills * 60;
+    rows.push({ label: '☠ Kills', val: kc });
+    rows.push({ label: '⏱ Survival', val: tc });
+    rows.push({ label: '⬆ Level', val: lc });
+    if (bc > 0) rows.push({ label: '👑 Bosses', val: bc });
+    let total = kc + tc + lc + bc;
+    if (this.win) {
+      rows.push({ label: '🏆 Victory', val: 150 });
+      total += 150;
+    }
+    meta.addCoins(total);
+    return { total, rows };
   }
 
   // The unlock/achievement reveal + "almost there" nudge shown on the death card —
   // the loop's retry bait ("1 boss kill from the Railgun!").
-  private buildEndReveal(result: RunResult): string {
+  private buildEndReveal(result: RunResult, pay: { total: number; rows: { label: string; val: number }[] }): string {
     let html = '';
+    // Salvage payout summary — itemised coins earned + new balance.
+    const rowsHtml = pay.rows
+      .map((r) => `<div class="ec-row"><span>${r.label}</span><span>+${r.val}</span></div>`)
+      .join('');
+    html +=
+      `<div class="end-coins"><div class="ec-head">SALVAGE</div>${rowsHtml}` +
+      `<div class="ec-total"><span>🪙 Earned</span><span>+${pay.total}</span></div>` +
+      `<div class="ec-bal">Stash: 🪙 ${meta.getProfile().coins}</div></div>`;
     if (result.newWeapons.length) {
       const names = result.newWeapons
         .map((id) => `${WEAPONS[id]?.icon ?? '🔫'} ${WEAPONS[id]?.name ?? id}`)

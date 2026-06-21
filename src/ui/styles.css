@@ -930,6 +930,55 @@ body::after {
   flex: none;
 }
 
+/* End-screen salvage payout (coins earned this run) */
+.end-coins {
+  background: var(--surface-1);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-md);
+  padding: var(--s2) var(--s3);
+  box-shadow: var(--e1), var(--bevel);
+}
+.ec-head {
+  font-size: var(--fz-xs);
+  letter-spacing: 2px;
+  opacity: 0.6;
+  text-align: center;
+  margin-bottom: var(--s2);
+}
+.ec-row,
+.ec-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--fz-sm);
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+}
+.ec-row {
+  opacity: 0.82;
+}
+.ec-row span:last-child {
+  color: var(--accent);
+  font-weight: 700;
+}
+.ec-total {
+  margin-top: var(--s1);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--hairline);
+  font-weight: 800;
+  font-size: var(--fz-md);
+}
+.ec-total span:last-child {
+  color: var(--accent);
+}
+.ec-bal {
+  text-align: center;
+  font-size: var(--fz-xs);
+  opacity: 0.6;
+  margin-top: var(--s1);
+  font-variant-numeric: tabular-nums;
+}
+
 .btn {
   pointer-events: auto;
   background: linear-gradient(180deg, #8fb96a 0%, var(--green) 55%, #3f5e2b 100%);

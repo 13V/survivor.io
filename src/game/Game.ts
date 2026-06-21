@@ -210,6 +210,7 @@ export class Game {
   private freeText: Text[] = [];
   private tele: Telegraph[] = [];
   private fx: FxLine[] = [];
+  private fxGfxPool: Graphics[] = []; // recycled zap/ring Graphics (avoid per-fire alloc)
 
   private player = {
     x: 0,
@@ -1324,18 +1325,33 @@ export class Game {
     this.dmgNums.push({ t, vy: -46, life: 0.6, max: 0.6 });
   }
 
+  // Grab a recycled FX Graphics (or make one, parented once into worldC).
+  private acquireFxG(): Graphics {
+    const g = this.fxGfxPool.pop();
+    if (g) {
+      g.clear();
+      g.visible = true;
+      g.alpha = 1;
+      g.position.set(0, 0);
+      g.scale.set(1, 1);
+      return g;
+    }
+    const n = new Graphics();
+    this.worldC.addChild(n);
+    return n;
+  }
+
   private spawnZap(x1: number, y1: number, x2: number, y2: number, color = 0x9be7ff): void {
-    const g = new Graphics();
+    const g = this.acquireFxG();
     g.moveTo(this.isoX(x1, y1), this.isoY(x1, y1)).lineTo(this.isoX(x2, y2), this.isoY(x2, y2)).stroke({ width: 3, color, alpha: 0.9 });
-    this.worldC.addChild(g);
     this.fx.push({ g, life: 0.12 });
   }
 
   private spawnNovaRing(x: number, y: number, r: number, color: number): void {
-    const g = new Graphics().circle(0, 0, r).stroke({ width: 4, color, alpha: 0.7 });
+    const g = this.acquireFxG();
+    g.circle(0, 0, r).stroke({ width: 4, color, alpha: 0.7 });
     g.position.set(this.isoX(x, y), this.isoY(x, y));
     g.scale.set(1, 0.5); // flat on the iso ground plane
-    this.worldC.addChild(g);
     this.fx.push({ g, life: 0.18 });
   }
 
@@ -1989,7 +2005,9 @@ export class Game {
       f.life -= dt;
       f.g.alpha = Math.max(0, f.life * 6);
       if (f.life <= 0) {
-        f.g.destroy();
+        f.g.visible = false;
+        f.g.clear();
+        this.fxGfxPool.push(f.g);
         this.fx.splice(i, 1);
       }
     }
@@ -2342,6 +2360,11 @@ export class Game {
     for (const t of this.tele) t.g.destroy();
     this.tele = [];
     for (const f of this.fx) f.g.destroy();
+    for (const f of this.fx) {
+      f.g.visible = false;
+      f.g.clear();
+      this.fxGfxPool.push(f.g);
+    }
     this.fx = [];
     for (const f of this.animFx) {
       this.fxC.removeChild(f.s);
@@ -2760,7 +2783,11 @@ export class Game {
     }
 
     const boss =
-      this.bossSpawned && this.bossEid >= 0 && Enemy.boss[this.bossEid] === 1 && !this.win
+      this.bossSpawned &&
+      this.bossEid >= 0 &&
+      Enemy.boss[this.bossEid] === 1 &&
+      !this.win &&
+      !this.dead.has(this.bossEid) // hide the bar the frame it dies, before win flips
         ? { hp: Math.max(0, Enemy.hp[this.bossEid]), maxHp: Enemy.maxHp[this.bossEid] }
         : null;
 

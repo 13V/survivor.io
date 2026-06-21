@@ -9,8 +9,7 @@ export const BASE_PICKUP_RADIUS = 95;
 export const COLLECT_RADIUS = 28;
 export const PLAYER_INVULN = 0.5; // seconds of i-frames after a contact hit
 
-export const RUN_TIME = 120; // total run length (s)
-export const BOSS_TIME = 90; // boss spawns / final push (s)
+// (Run/boss timing lives per-stage on StageDef.bossTime, not as globals.)
 
 // Difficulty ramp: enemy stat multiplier grows with elapsed time.
 export function difficultyMul(t: number): number {

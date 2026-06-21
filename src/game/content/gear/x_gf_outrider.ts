@@ -1,0 +1,6 @@
+// Outrider Set — three epic pieces built for scouts who outrun death, not just outfight it.
+import { registerGear } from '../../registry';
+
+registerGear({ id: 'gf_outrider_boots', name: 'Outrider Boots', slot: 'boots', rarity: 'epic', icon: '👢', desc: 'Stripped off a courier who covered forty klicks a day through contested zones. The insoles are soaked through but the treads are pristine — because the dead never got close enough to slow him down.', mods: { moveMul: 0.18, dmgTakenMul: -0.06 } });
+registerGear({ id: 'gf_outrider_gloves', name: 'Outrider Gloves', slot: 'gloves', rarity: 'epic', icon: '🧤', desc: 'Trigger-finger cut, palm-grip ribbed, wrist braced for fast draws and faster reloads. The stitching is gore-stained but the latches snap clean. Every second you save is a second the horde doesn\'t get.', mods: { cdMul: -0.17, moveMul: 0.05 } });
+registerGear({ id: 'gf_outrider_tag', name: 'Outrider Dog Tag', slot: 'necklace', rarity: 'epic', icon: '🔖', desc: 'One tag from a two-tag pair. The other went into the ground with its owner. You wear this one to remember what happens when you hesitate — and to make sure every shot you take counts double.', mods: { critRate: 0.16, critDmg: 0.12 } });

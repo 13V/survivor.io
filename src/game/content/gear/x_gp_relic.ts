@@ -1,0 +1,6 @@
+// Pre-Collapse Relic Set — three legendary pieces salvaged from before the outbreak.
+import { registerGear } from '../../registry';
+
+registerGear({ id: 'gp_relic_pendant', name: 'Pre-Collapse Pendant', slot: 'necklace', rarity: 'legendary', icon: '📿', desc: 'A corroded data-drive encased in cracked polymer, strung on braided copper wire. Whatever it stored is long gone — but the residual signal it pulses still draws resources to you like a beacon and sharpens every lesson learned in blood.', mods: { xpMul: 0.25, pickupMul: 0.2 } });
+registerGear({ id: 'gp_relic_blade', name: 'Pre-Collapse Blade', slot: 'weapon', rarity: 'legendary', icon: '🗡️', desc: 'A vibro-edged combat knife recovered from a sealed bunker — the manufacturer\'s logo long since worn away. The micro-serrations still hum at a frequency that parts flesh like static. Whoever made this knew the world was going to end.', mods: { dmgMul: 0.28, critRate: 0.07 } });
+registerGear({ id: 'gp_relic_treads', name: 'Pre-Collapse Treads', slot: 'boots', rarity: 'legendary', icon: '👟', desc: 'Military-grade exo-assist boots stripped from a crashed prototype transport. The pneumatic coils are half-corroded but still fire, launching each stride with mechanical precision. The stamped warning label reads: DO NOT RUN. You ignored it then. You\'ll ignore it now.', mods: { moveMul: 0.2, cdMul: -0.06 } });

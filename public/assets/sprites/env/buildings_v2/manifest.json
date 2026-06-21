@@ -2,17 +2,17 @@
   "tiles": [
     {
       "file": "building_brick_3x3_f2.png",
-      "w": 422,
-      "h": 469,
+      "w": 421,
+      "h": 470,
       "anchorX": 211,
-      "anchorY": 450,
+      "anchorY": 451,
       "W": 3,
       "D": 3,
       "floors": 2
     },
     {
       "file": "building_brick_4x3_f1.png",
-      "w": 490,
+      "w": 491,
       "h": 383,
       "anchorX": 277,
       "anchorY": 363,
@@ -23,19 +23,19 @@
     {
       "file": "building_brick_4x4_f2.png",
       "w": 560,
-      "h": 535,
+      "h": 536,
       "anchorX": 280,
-      "anchorY": 514,
+      "anchorY": 515,
       "W": 4,
       "D": 4,
       "floors": 2
     },
     {
       "file": "building_concrete_3x3_f1.png",
-      "w": 422,
-      "h": 340,
+      "w": 421,
+      "h": 341,
       "anchorX": 211,
-      "anchorY": 321,
+      "anchorY": 322,
       "W": 3,
       "D": 3,
       "floors": 1
@@ -43,7 +43,7 @@
     {
       "file": "building_concrete_4x4_f2.png",
       "w": 560,
-      "h": 535,
+      "h": 536,
       "anchorX": 280,
       "anchorY": 514,
       "W": 4,
@@ -52,7 +52,7 @@
     },
     {
       "file": "building_concrete_3x4_f2.png",
-      "w": 539,
+      "w": 540,
       "h": 610,
       "anchorX": 213,
       "anchorY": 488,
@@ -62,7 +62,7 @@
     },
     {
       "file": "building_dark_4x3_f2.png",
-      "w": 490,
+      "w": 491,
       "h": 512,
       "anchorX": 277,
       "anchorY": 492,
@@ -72,7 +72,7 @@
     },
     {
       "file": "building_dark_3x4_f1.png",
-      "w": 490,
+      "w": 491,
       "h": 379,
       "anchorX": 213,
       "anchorY": 359,
@@ -83,9 +83,9 @@
     {
       "file": "building_dark_4x4_f1.png",
       "w": 560,
-      "h": 406,
+      "h": 407,
       "anchorX": 280,
-      "anchorY": 385,
+      "anchorY": 386,
       "W": 4,
       "D": 4,
       "floors": 1

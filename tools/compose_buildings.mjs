@@ -19,7 +19,13 @@ const SRC = "/tmp/envpack/iso/Isometric Tiles/";
 const OUT = "/home/user/survivor.io/public/assets/sprites/env/buildings_v2/";
 
 // projection: one cell vertex V(i,j) = (Ox + (i-j)*SX, Oy + (i+j)*SY)
-const SX = 64, SY = 32, FH = 129;
+// SS = supersample factor: compose at SSx the final size, then downscale 1/SS with high-quality
+// smoothing on output. Affine-mapped faces are smooth inside, but the diagonal iso SILHOUETTE
+// edges (rooflines, parapet tops, wall/ground edges) are 1px-hard at 1x and read as jagged stairs.
+// Rendering big and shrinking gives those edges real anti-aliasing. Output footprint is unchanged
+// (so buildings still drop in at scale 1 and the manifest anchors line up).
+const SS = 3;
+const SX = 64 * SS, SY = 32 * SS, FH = 129 * SS;
 
 const MAT = {
   brick:    { plain: "Wall D1", win: ["Wall D18", "Wall D20"], door: "Wall D11" },
@@ -59,7 +65,7 @@ const files = neededFiles();
 const data = {};
 for (const f of files) { try { data[f] = toURL(f); } catch {} }
 
-const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET, PROPS, BLOOD, SX, SY, FH }) => {
+const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET, PROPS, BLOOD, SX, SY, FH, SS }) => {
   const load = (src) => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = src; });
   const IMG = {};
   for (const [n, s] of Object.entries(data)) IMG[n] = await load(s);
@@ -118,7 +124,7 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
   function compose({ material, W, D, floors, door, seedBase }) {
     const mat = MAT[material];
     const rnd = mulberry32(seedBase);
-    const CW = 1400, CH = 1400, Ox = 700, Oy = 1050;
+    const CW = 1400 * SS, CH = 1400 * SS, Ox = 700 * SS, Oy = 1050 * SS;
     const cv = document.createElement('canvas'); cv.width = CW; cv.height = CH;
     const ctx = cv.getContext('2d');
     const V = (i, j) => [Ox + (i - j) * SX, Oy + (i + j) * SY];
@@ -134,7 +140,7 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
       const cx2 = (g[0][0] + g[2][0]) / 2, cy2 = (g[0][1] + g[2][1]) / 2;
       const ex = 1.08;
       ctx.save();
-      ctx.filter = 'blur(12px)';
+      ctx.filter = `blur(${12 * SS}px)`;
       ctx.fillStyle = 'rgba(0,0,0,0.34)';
       ctx.beginPath();
       ctx.moveTo(cx2 + (g[0][0] - cx2) * ex, cy2 + (g[0][1] - cy2) * ex);
@@ -207,11 +213,12 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
     // ---------- PARAPET: the building's own wall extending a touch above the roof deck.
     // Same material as the walls -> seamless lip (the roof deck at R sits recessed PH below the
     // wall top). We map the TOP slice of the wall tile so brick/block scale isn't squished.
-    const PH = 30; // parapet height in px
+    const PH = 30 * SS; // parapet height in DEST px (canvas) — scaled by supersample
+    const PH_SRC = 30;  // source-tile slice stays in source px so the brick scale is unchanged
     const topSliceQuad = (q) => {
-      // q.bl/br/tl/tr are the wall face corners; take the top PH px (in dest scale ~1:1) of the face.
+      // q.bl/br/tl/tr are the wall face corners (source px); take the top PH_SRC px of the face.
       const tl = q.tl, tr = q.tr;
-      const bl = [q.tl[0], q.tl[1] + PH], br = [q.tr[0], q.tr[1] + PH];
+      const bl = [q.tl[0], q.tl[1] + PH_SRC], br = [q.tr[0], q.tr[1] + PH_SRC];
       return { bl, br, tl, tr };
     };
     const drawPara = (tileImg, BL, BR) => {
@@ -243,7 +250,7 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
         // object tiles share the (64,208) base-center convention; sit on the roof cell-center, lifted by R
         const cx = Ox + (c.i + 0.5 - (c.j + 0.5)) * SX;
         const cy = Oy + (c.i + 0.5 + (c.j + 0.5)) * SY - R;
-        const psc = 0.5; // AC units / water tanks are small roof furniture, not full-cell volumes
+        const psc = 0.5 * SS; // roof furniture scale, lifted into supersample space (64,208 stay source px)
         ctx.save(); ctx.setTransform(psc, 0, 0, psc, cx - 64 * psc, cy - 208 * psc);
         ctx.drawImage(propImg, 0, 0);
         ctx.restore();
@@ -263,17 +270,30 @@ const result = await page.evaluate(async ({ data, BUILDINGS, MAT, ROOF, PARAPET,
     let minX = 1e9, minY = 1e9, maxX = -1, maxY = -1;
     for (let y = 0; y < CH; y++) for (let x = 0; x < CW; x++) if (id[(y * CW + x) * 4 + 3] > 8) { if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y; }
     const tw = maxX - minX + 1, th = maxY - minY + 1;
-    const out = document.createElement('canvas'); out.width = tw; out.height = th;
-    out.getContext('2d').drawImage(cv, minX, minY, tw, th, 0, 0, tw, th);
+    // Downscale the supersampled crop by 1/SS with high-quality smoothing — this is where the
+    // jagged diagonal iso edges become anti-aliased.
+    const dw = Math.round(tw / SS), dh = Math.round(th / SS);
+    const ds = document.createElement('canvas'); ds.width = dw; ds.height = dh;
+    const dctx = ds.getContext('2d');
+    dctx.imageSmoothingEnabled = true; dctx.imageSmoothingQuality = 'high';
+    dctx.drawImage(cv, minX, minY, tw, th, 0, 0, dw, dh);
+    // Re-trim at OUTPUT scale: supersampled blur/AA tails that were >8 on the big canvas can fall
+    // below 8 after the shrink, leaving transparent padding. Trim it so the sprite stays tight.
+    const dd = dctx.getImageData(0, 0, dw, dh).data;
+    let nx = 1e9, ny = 1e9, xx = -1, xy = -1;
+    for (let y = 0; y < dh; y++) for (let x = 0; x < dw; x++) if (dd[(y * dw + x) * 4 + 3] > 8) { if (x < nx) nx = x; if (y < ny) ny = y; if (x > xx) xx = x; if (y > xy) xy = y; }
+    const ow = xx - nx + 1, oh = xy - ny + 1;
+    const out = document.createElement('canvas'); out.width = ow; out.height = oh;
+    out.getContext('2d').drawImage(ds, nx, ny, ow, oh, 0, 0, ow, oh);
     const near = V(W, D); // front/near ground corner (footprint outer vertex)
-    return { dataURL: out.toDataURL('image/png'), w: tw, h: th, anchorX: near[0] - minX, anchorY: near[1] - minY, W, D, floors };
+    return { dataURL: out.toDataURL('image/png'), w: ow, h: oh, anchorX: (near[0] - minX) / SS - nx, anchorY: (near[1] - minY) / SS - ny, W, D, floors };
   }
 
   const outputs = [];
   let seed = 4242;
   for (const b of BUILDINGS) { outputs.push({ slug: b.slug, material: b.material, ...compose({ ...b, seedBase: seed }) }); seed += 137; }
   return outputs;
-}, { data, BUILDINGS, MAT, ROOF, PARAPET, PROPS, BLOOD, SX, SY, FH });
+}, { data, BUILDINGS, MAT, ROOF, PARAPET, PROPS, BLOOD, SX, SY, FH, SS });
 
 for (const f of fs.readdirSync(OUT)) if (f.endsWith(".png")) fs.unlinkSync(OUT + f);
 const manifest = { tiles: [] };

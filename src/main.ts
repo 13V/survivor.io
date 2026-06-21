@@ -19,6 +19,7 @@ import { GearScreen } from './ui/gearscreen';
 import { CollectionScreen } from './ui/collection';
 import { PetSelect } from './ui/petselect';
 import { MetaShop } from './ui/shop';
+import { WalletPanel } from './ui/wallet';
 
 async function main(): Promise<void> {
   const app = new Application();
@@ -70,6 +71,7 @@ async function main(): Promise<void> {
   const gearScreen = new GearScreen(root); // floating loadout button + full-screen modal
   const collectionScreen = new CollectionScreen(root); // floating arsenal/achievements button + modal
   const shop = new MetaShop(root); // floating power-ups button + modal (spends coins)
+  const wallet = new WalletPanel(root); // floating $ZOMBIE wallet (devnet scaffold)
 
   new SettingsPanel(root, {
     onPause: () => app.ticker.stop(),
@@ -84,6 +86,7 @@ async function main(): Promise<void> {
     gearScreen.setVisible(false);
     collectionScreen.setVisible(false);
     shop.setVisible(false);
+    wallet.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
     new Game(app, hud, minimap, charSelect.selected, stageSelect.selected, petSelect.selected);
@@ -95,6 +98,7 @@ async function main(): Promise<void> {
   gearScreen.setVisible(true);
   collectionScreen.setVisible(true);
   shop.setVisible(true);
+  wallet.setVisible(true);
 }
 
 void main();

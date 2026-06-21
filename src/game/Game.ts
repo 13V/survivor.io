@@ -155,6 +155,16 @@ const PACK_SPREAD = 95; // cluster radius around the pack's head
 // ---- Level-up draft agency ------------------------------------------------
 // Per-run budgets for re-drawing / pruning the level-up offer (the genre's
 // reroll/banish/lock trio), refreshed each run.
+// Broad-phase queries pad by the largest possible enemy radius so a big boss
+// (radius up to ~90) whose centre sits across a 120px hash cell is never dropped
+// before the exact (pr+er) overlap test. Over-querying a little is cheap; missing
+// a hit on the boss is not.
+const MAX_ENEMY_R = 100;
+
+// Kill-blood decals recycle in their own budget so they never get starved by the
+// ~650 static scatter decals placed at run start (they shared one cap before).
+const MAX_BLOOD_DECALS = 240;
+
 const REROLLS_PER_RUN = 3;
 const BANISHES_PER_RUN = 3;
 
@@ -265,6 +275,7 @@ export class Game {
   // all depth-sorted with the cast by base-Y.
   private env: EnvAssets | null = null;
   private decalC = new Container();
+  private bloodDecals: Sprite[] = []; // recycled FIFO of kill-blood decals
   private envProps: Sprite[] = [];
   private firePhase = 0;
   private fireBarrels: { s: Sprite; t: number }[] = [];
@@ -630,6 +641,7 @@ export class Game {
   private scatterProps(): void {
     // clear previous dressing
     for (const c of this.decalC.removeChildren()) c.destroy();
+    this.bloodDecals.length = 0; // those sprites were just destroyed above
     for (const s of this.envProps) {
       this.worldC.removeChild(s);
       s.destroy();
@@ -1107,7 +1119,7 @@ export class Game {
     const inst: WeaponInst = { def, level: 1, timer: 0, angle: 0, blades: [] };
     this.weapons.push(inst);
     this.ownedWeapons.set(id, inst);
-    if (inst.def.type === 'orbit') this.rebuildBlades(inst);
+    if (inst.def.orbit) this.rebuildBlades(inst);
   }
 
   private rebuildBlades(inst: WeaponInst): void {
@@ -1700,7 +1712,7 @@ export class Game {
         continue;
       }
       let pierce = Projectile.pierce[e];
-      this.hash.queryRadius(px, py, pr + 30, this.cand);
+      this.hash.queryRadius(px, py, pr + MAX_ENEMY_R, this.cand);
       for (const en of this.cand) {
         if (this.dead.has(en)) continue;
         const er = Enemy.radius[en];
@@ -1774,7 +1786,7 @@ export class Game {
       }
       // permanent pooled blood left on the street
       const edec = this.env?.decals;
-      if (died && edec?.length && this.decalC.children.length < 700) {
+      if (died && edec?.length) {
         const ds = new Sprite(edec[(Math.random() * edec.length) | 0]);
         ds.anchor.set(0.5);
         ds.position.set(Position.x[e], Position.y[e]);
@@ -1782,6 +1794,14 @@ export class Game {
         ds.scale.set(0.7 + Math.random() * 0.6);
         ds.alpha = 0.85;
         this.decalC.addChild(ds);
+        this.bloodDecals.push(ds);
+        if (this.bloodDecals.length > MAX_BLOOD_DECALS) {
+          const old = this.bloodDecals.shift();
+          if (old) {
+            this.decalC.removeChild(old);
+            old.destroy();
+          }
+        }
       }
       this.kills++;
       this.addCombo(Position.x[e], Position.y[e]);
@@ -1794,7 +1814,7 @@ export class Game {
   private playerContact(): void {
     const p = this.player;
     if (this.invulnerable()) return;
-    this.hash.queryRadius(p.x, p.y, p.radius + 30, this.cand);
+    this.hash.queryRadius(p.x, p.y, p.radius + MAX_ENEMY_R, this.cand);
     for (const e of this.cand) {
       const er = Enemy.radius[e];
       const dx = Position.x[e] - p.x;
@@ -1918,8 +1938,7 @@ export class Game {
     s.alpha = 1;
     s.rotation = Math.random() * Math.PI * 2;
     s.visible = true;
-    this.worldC.addChild(this.fxC); // keep FX above any enemies pooled since boot
-    this.fxC.addChild(s);
+    this.fxC.addChild(s); // fxC is parented once in the constructor
     this.animFx.push({ s, frames, t: 0, dur });
   }
 
@@ -2099,7 +2118,7 @@ export class Game {
         const w = o.id ? this.ownedWeapons.get(o.id) : undefined;
         if (w) {
           w.level++;
-          if (w.def.type === 'orbit') this.rebuildBlades(w);
+          if (w.def.orbit) this.rebuildBlades(w);
         }
         break;
       }
@@ -2605,9 +2624,9 @@ export class Game {
       }
     }
 
-    // orbit blades
+    // orbit blades (any weapon flagged orbit: true, incl. whirl-type)
     for (const w of this.weapons) {
-      if (w.def.type !== 'orbit') continue;
+      if (!w.def.orbit) continue;
       const s = w.def.stats(w.level);
       const n = w.blades.length;
       const scale = s.radius / 11;

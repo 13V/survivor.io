@@ -20,6 +20,8 @@ registerWeapon({
     pierce: 0,
     range: 120 + (l - 1) * 18,
     knock: 60 + (l - 1) * 12,
+    chillMul: 0.6 - (l - 1) * 0.03, // slows enemies caught in the freeze
+    chillDur: 1.6,
   }),
 });
 
@@ -41,6 +43,8 @@ registerWeapon({
     pierce: 0,
     range: 180 + (l - 1) * 15,
     knock: 110 + (l - 1) * 14,
+    chillMul: 0.45 - (l - 1) * 0.03,
+    chillDur: 2,
   }),
 });
 

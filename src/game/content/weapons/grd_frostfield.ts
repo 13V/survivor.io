@@ -22,6 +22,8 @@ registerWeapon({
     pierce: 0,
     range: 165 + (l - 1) * 20,
     knock: 60,
+    chillMul: 0.55 - (l - 1) * 0.03, // its real job: a wide, strong slow
+    chillDur: 1.8,
   }),
 });
 
@@ -43,6 +45,8 @@ registerWeapon({
     pierce: 0,
     range: 220 + (l - 1) * 26,
     knock: 90,
+    chillMul: 0.4 - (l - 1) * 0.03,
+    chillDur: 2.2,
   }),
 });
 

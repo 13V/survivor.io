@@ -38,6 +38,7 @@ import {
   type Mods,
   type WeaponContext,
   type WeaponRuntime,
+  type WeaponStats,
   type CharacterDef,
   type StageDef,
   type PetDef,
@@ -309,6 +310,15 @@ export class Game {
   private enemyGait: number[] = []; // 0 = run, 1 = crouch-run (when fast)
   private enemySpawnT: number[] = []; // spawn time, for the WakeUp emerge
   private enemyHitT: number[] = []; // TakeDamage flinch timer
+  // Status ailments (plain per-eid arrays, same pattern as the anim aux state):
+  // burn + poison are damage-over-time; chill multiplies move speed (<1 = slowed).
+  private burnT: number[] = [];
+  private burnDps: number[] = [];
+  private poisonT: number[] = [];
+  private poisonDps: number[] = [];
+  private chillT: number[] = [];
+  private chillMul: number[] = [];
+  private curStats: WeaponStats | null = null; // stats of the weapon currently firing
   private enemyTauntEnd: number[] = []; // time until current Taunt ends
   // Sprites detached from dead zombies, playing their one-shot Die animation.
   private zDeaths: { s: Sprite; die: DirAnimZ; row: number; flip: boolean; t: number; dur: number }[] = [];
@@ -874,7 +884,10 @@ export class Game {
           cb(e, dx, dy, Math.hypot(dx, dy));
         }
       },
-      damage: (eid, dmg, crit) => self.damageEnemy(eid, dmg, crit),
+      damage: (eid, dmg, crit) => {
+        self.damageEnemy(eid, dmg, crit);
+        self.applyAilments(eid);
+      },
       knockback: (eid, nx, ny, force) => {
         Enemy.knx[eid] = nx;
         Enemy.kny[eid] = ny;
@@ -1178,6 +1191,62 @@ export class Game {
     }
   }
 
+  // Apply the firing weapon's status effects (if any) to a freshly-hit enemy.
+  // DoTs refresh to the longest duration + strongest dps; chill keeps the
+  // strongest slow. Bosses resist chill so they can't be frozen in place.
+  private applyAilments(eid: number): void {
+    const s = this.curStats;
+    if (!s || this.dead.has(eid)) return;
+    if (s.burnDps && s.burnDur) {
+      this.burnT[eid] = Math.max(this.burnT[eid] ?? 0, s.burnDur);
+      this.burnDps[eid] = Math.max(this.burnDps[eid] ?? 0, s.burnDps);
+      this.particles.spark(Position.x[eid], Position.y[eid], 0xff7a2a);
+    }
+    if (s.poisonDps && s.poisonDur) {
+      this.poisonT[eid] = Math.max(this.poisonT[eid] ?? 0, s.poisonDur);
+      this.poisonDps[eid] = Math.max(this.poisonDps[eid] ?? 0, s.poisonDps);
+      this.particles.spark(Position.x[eid], Position.y[eid], 0x8fcf3a);
+    }
+    if (s.chillMul && s.chillDur && s.chillMul < 1) {
+      const floor = Enemy.boss[eid] ? 0.7 : 0; // bosses can't be slowed below 70%
+      this.chillT[eid] = Math.max(this.chillT[eid] ?? 0, s.chillDur);
+      const prev = this.chillMul[eid] || 1;
+      this.chillMul[eid] = Math.max(floor, Math.min(prev, s.chillMul));
+      this.particles.spark(Position.x[eid], Position.y[eid], 0x7ad0ff);
+    }
+  }
+
+  // Tick a single enemy's DoT ailments; returns true if it died this tick.
+  private tickAilments(e: number, dt: number): boolean {
+    let dmg = 0;
+    if (this.burnT[e] > 0) {
+      dmg += this.burnDps[e] * dt;
+      this.burnT[e] -= dt;
+    }
+    if (this.poisonT[e] > 0) {
+      dmg += this.poisonDps[e] * dt;
+      this.poisonT[e] -= dt;
+    }
+    if (this.chillT[e] > 0) this.chillT[e] -= dt;
+    if (dmg > 0 && !this.dead.has(e)) {
+      Enemy.hp[e] -= dmg;
+      if (Enemy.hp[e] <= 0) {
+        this.dead.add(e);
+        this.killList.push(e);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Sprite tint for an active ailment (burn/poison/chill), or null if none.
+  private statusTint(e: number): number | null {
+    if (this.burnT[e] > 0) return 0xff8a44;
+    if (this.poisonT[e] > 0) return 0x9bd84a;
+    if (this.chillT[e] > 0) return 0x9ad4ff;
+    return null;
+  }
+
   private updatePet(dt: number): void {
     if (!this.pet) return;
     const p = this.player;
@@ -1223,6 +1292,7 @@ export class Game {
       const h = behaviors[w.def.type];
       if (!h) continue;
       const s = w.def.stats(w.level);
+      this.curStats = s; // so ctx.damage can apply this weapon's status effects
       if (h.update) h.update(this.ctx, w, s, dt);
       if (h.fire) {
         w.timer -= dt;
@@ -1528,13 +1598,14 @@ export class Game {
   private updateEnemies(dt: number): void {
     const p = this.player;
     for (const e of enemyQuery(this.world)) {
+      if (this.tickAilments(e, dt)) continue; // burn/poison finished it off this frame
       const dx = p.x - Position.x[e];
       const dy = p.y - Position.y[e];
       const d = Math.hypot(dx, dy) || 1;
       // Hold position briefly on spawn while the WakeUp emerge animation plays.
       const waking = this.enemyZ[e] !== undefined && this.time - this.enemySpawnT[e] < WAKE_DUR;
       if (!waking) {
-        const spd = Enemy.speed[e];
+        const spd = Enemy.speed[e] * (this.chillT[e] > 0 ? this.chillMul[e] || 1 : 1);
         let mvx = (dx / d) * spd;
         let mvy = (dy / d) * spd;
         // Crowd separation: push off overlapping neighbours so the horde packs into a churning
@@ -2258,6 +2329,12 @@ export class Game {
     this.enemySpawnT = [];
     this.enemyHitT = [];
     this.enemyTauntEnd = [];
+    this.burnT = [];
+    this.burnDps = [];
+    this.poisonT = [];
+    this.poisonDps = [];
+    this.chillT = [];
+    this.chillMul = [];
     for (const d of this.zDeaths) {
       d.s.visible = false;
       d.s.alpha = 1;
@@ -2554,7 +2631,10 @@ export class Game {
         // HD zombie: 8-direction facing via 5 stored rows + horizontal mirror. Swing the
         // Attack cycle when in reach, else shamble (Walk) or run by speed. Per-entity
         // frame offset + attack variant keep the horde from marching in lockstep.
-        s.tint = Enemy.flash[e] > 0 ? 0xff7777 : Enemy.elite[e] ? ELITE_TINT : 0xffffff;
+        s.tint =
+          Enemy.flash[e] > 0
+            ? 0xff7777
+            : (this.statusTint(e) ?? (Enemy.elite[e] ? ELITE_TINT : 0xffffff));
         const dx = p.x - ex;
         const dy = p.y - ey;
         const m = dir5(dirRow(Math.atan2(dy, dx)));
@@ -2591,11 +2671,12 @@ export class Game {
       s.tint =
         Enemy.flash[e] > 0
           ? 0xff7777
-          : Enemy.elite[e]
-            ? ELITE_TINT
-            : this.artUpright
-              ? 0xffffff
-              : (ENEMY_DEFS[k].tint ?? 0xffffff);
+          : (this.statusTint(e) ??
+            (Enemy.elite[e]
+              ? ELITE_TINT
+              : this.artUpright
+                ? 0xffffff
+                : (ENEMY_DEFS[k].tint ?? 0xffffff)));
       // upright top-down art: stay level, face the player by horizontal mirror
       if (this.artUpright)
         s.scale.x = p.x < Position.x[e] ? -Math.abs(s.scale.x) : Math.abs(s.scale.x);

@@ -23,6 +23,8 @@ registerWeapon({
     range: 220,
     knock: 18,
     spreadDeg: 34,
+    burnDps: 4 + (l - 1) * 2, // lingering fire damage-over-time
+    burnDur: 2,
   }),
 });
 
@@ -47,6 +49,8 @@ registerWeapon({
     range: 260,
     knock: 26,
     spreadDeg: 40,
+    burnDps: 9 + (l - 1) * 4,
+    burnDur: 2.5,
   }),
 });
 

@@ -22,6 +22,8 @@ registerWeapon({
     range: 320 + (l - 1) * 30,                    // 320 -> 440
     knock: 2,
     spreadDeg: 28,                                 // cone half-spread in degrees
+    poisonDps: 5 + (l - 1) * 2,                    // corrosive damage-over-time
+    poisonDur: 3,
   }),
 });
 
@@ -45,6 +47,8 @@ registerWeapon({
     range: 370 + (l - 1) * 30,                    // 370 -> 490
     knock: 3,
     spreadDeg: 32,                                 // wider cone on evolution
+    poisonDps: 12 + (l - 1) * 4,
+    poisonDur: 3.5,
   }),
 });
 

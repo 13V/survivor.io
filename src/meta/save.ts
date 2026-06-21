@@ -21,6 +21,7 @@ export interface Profile {
   unlocked: string[]; // weapon ids earned via achievements (starters are implicit)
   done: string[]; // completed achievement ids
   stats: Record<string, number>; // lifetime counters that drive achievement progress
+  metaUpgrades: Record<string, number>; // permanent power-up id -> purchased level
 }
 
 /** Stats reported at the end of a single run (drives achievement progress). */
@@ -46,7 +47,7 @@ export interface RunResult {
 type ChangeListener = (profile: Profile) => void;
 
 const STORAGE_KEY = 'survivor.io:profile';
-const CURRENT_VERSION = 3;
+const CURRENT_VERSION = 4;
 
 /** A fresh, zeroed profile at the current schema version. */
 function defaultProfile(): Profile {
@@ -60,6 +61,7 @@ function defaultProfile(): Profile {
     unlocked: [],
     done: [],
     stats: {},
+    metaUpgrades: {},
   };
 }
 
@@ -109,6 +111,7 @@ function migrate(raw: unknown): Profile {
     unlocked: strArr(r.unlocked),
     done: strArr(r.done),
     stats: numMap(r.stats),
+    metaUpgrades: numMap(r.metaUpgrades),
   };
 }
 
@@ -326,6 +329,18 @@ class Meta {
     this.save();
     this.notify();
     return true;
+  }
+
+  /** Purchased level of a permanent meta upgrade (0 if never bought). */
+  getUpgradeLevel(id: string): number {
+    return safeInt(this.profile.metaUpgrades[id], 0);
+  }
+
+  /** Set a meta upgrade's level (clamped to >= 0). Persists immediately. */
+  setUpgradeLevel(id: string, level: number): void {
+    this.profile.metaUpgrades[id] = Math.max(0, safeInt(level, 0));
+    this.save();
+    this.notify();
   }
 
   /** The equipped gear map (slot -> gear id). Defensive copy. */

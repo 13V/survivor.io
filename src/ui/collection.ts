@@ -8,57 +8,97 @@ import { ACHIEVEMENTS, allUnlockableWeapons } from '../meta/achievements';
 const CSS = `
 .col-btn {
   position: fixed; top: 12px; left: 60px; z-index: 22;
-  width: 40px; height: 40px; border-radius: 10px;
-  background: rgba(14,18,26,0.85); border: 1px solid rgba(255,255,255,0.18);
-  color: #fff; font-size: 20px; cursor: pointer;
+  width: 40px; height: 40px; border-radius: var(--r-sm);
+  background: var(--surface-1); border: 1px solid var(--stroke);
+  color: var(--ink); font-size: 20px; cursor: pointer;
+  box-shadow: var(--e1);
+  transition: background 0.15s, border-color 0.15s;
+}
+.col-btn:hover {
+  background: var(--surface-2); border-color: var(--stroke-strong);
 }
 .col-btn[hidden] { display: none; }
 .col-overlay {
   position: fixed; inset: 0; z-index: 25; overflow-y: auto;
-  background: rgba(5,7,12,0.9); backdrop-filter: blur(3px);
-  display: flex; align-items: flex-start; justify-content: center; padding: 24px 12px;
+  background: rgba(5,7,12,0.82); backdrop-filter: blur(var(--glass-blur));
+  display: flex; align-items: flex-start; justify-content: center; padding: var(--s5) var(--s3);
 }
 .col-overlay[hidden] { display: none; }
-.col-panel { width: min(760px, 96vw); display: flex; flex-direction: column; gap: 10px; }
-.col-panel h2 { margin: 8px 0 0; color: #ffd24a; letter-spacing: 2px; text-align: center; }
-.col-sub { text-align: center; font-size: 12px; opacity: 0.65; margin-bottom: 4px; }
-.col-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+.col-panel { width: min(760px, 96vw); display: flex; flex-direction: column; gap: var(--s3); }
+.col-panel h2 {
+  margin: var(--s2) 0 0;
+  color: var(--accent);
+  letter-spacing: 2px;
+  text-align: center;
+  font-size: var(--fz-lg);
+  text-shadow: 0 0 18px rgba(255,210,74,0.35);
+}
+.col-sub { text-align: center; font-size: var(--fz-xs); opacity: 0.55; margin-bottom: var(--s1); color: var(--ink); }
+.col-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--s2); }
 .col-w {
-  background: rgba(20,26,38,0.7); border: 2px solid #2c3445; border-radius: 10px;
-  padding: 8px 6px; display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 78px;
+  background: var(--surface-1); border: 1px solid var(--stroke); border-radius: var(--r-md);
+  padding: var(--s2) var(--s1); display: flex; flex-direction: column; align-items: center; gap: 3px; min-height: 78px;
+  box-shadow: var(--e1), var(--bevel);
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
-.col-w.unlocked { border-color: #46d17a; box-shadow: 0 0 8px rgba(70,209,122,0.25); }
+.col-w.unlocked {
+  border-color: var(--accent);
+  box-shadow: var(--e1), var(--bevel), 0 0 10px rgba(255,210,74,0.18);
+}
+.col-w.locked { opacity: 0.45; }
 .cw-ico { font-size: 24px; }
-.col-w.locked .cw-ico { filter: grayscale(1) brightness(0.5); }
-.cw-name { font-size: 11px; font-weight: 700; text-align: center; }
-.cw-hint { font-size: 9px; opacity: 0.6; text-align: center; line-height: 1.15; }
-.col-achs { display: flex; flex-direction: column; gap: 6px; }
+.col-w.locked .cw-ico { filter: grayscale(1) brightness(0.45); }
+.cw-name { font-size: var(--fz-xs); font-weight: 700; text-align: center; color: var(--ink); }
+.col-w.unlocked .cw-name { color: var(--accent); }
+.cw-hint { font-size: 9px; opacity: 0.55; text-align: center; line-height: 1.15; color: var(--ink); }
+.col-achs { display: flex; flex-direction: column; gap: var(--s1); }
 .col-ach {
-  display: flex; align-items: center; gap: 10px; padding: 7px 10px;
-  background: rgba(20,26,38,0.7); border-radius: 10px; border-left: 3px solid #2c3445;
+  display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s3);
+  background: var(--surface-1); border-radius: var(--r-md);
+  border: 1px solid var(--hairline); border-left: 3px solid var(--stroke);
+  box-shadow: var(--e1), var(--bevel);
+  transition: border-left-color 0.15s, background 0.15s;
 }
-.col-ach.done { border-left-color: #46d17a; background: rgba(28,46,36,0.6); }
+.col-ach.done {
+  border-left-color: var(--hp);
+  background: var(--surface-2);
+  border-color: var(--stroke);
+}
 .ca-ico { font-size: 22px; width: 26px; text-align: center; }
 .col-ach.done .ca-ico { filter: none; }
-.col-ach:not(.done) .ca-ico { filter: grayscale(0.4) brightness(0.85); }
+.col-ach:not(.done) .ca-ico { filter: grayscale(0.5) brightness(0.7); }
 .ca-body { flex: 1; min-width: 0; }
-.ca-name { font-size: 13px; font-weight: 700; }
-.ca-name .ca-rew { color: #ffd24a; font-weight: 600; }
-.ca-desc { font-size: 11px; opacity: 0.6; }
-.ca-bar { height: 5px; border-radius: 3px; background: rgba(255,255,255,0.1); margin-top: 4px; overflow: hidden; }
-.ca-bar > i { display: block; height: 100%; background: #46d17a; border-radius: 3px; }
-.ca-num { font-size: 11px; opacity: 0.8; min-width: 54px; text-align: right; }
-.col-evos { display: flex; flex-direction: column; gap: 5px; }
-.col-evo {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  background: rgba(20,26,38,0.6); border-radius: 8px; padding: 6px 10px; font-size: 12px;
+.ca-name { font-size: var(--fz-sm); font-weight: 700; color: var(--ink); }
+.col-ach:not(.done) .ca-name { opacity: 0.75; }
+.ca-name .ca-rew { color: var(--accent); font-weight: 600; }
+.ca-desc { font-size: var(--fz-xs); opacity: 0.55; color: var(--ink); }
+.ca-bar {
+  height: 5px; border-radius: var(--r-pill);
+  background: var(--rail); margin-top: var(--s1); overflow: hidden;
 }
-.col-evo.locked { opacity: 0.5; }
-.col-evo .ev-w { font-weight: 700; }
-.col-evo .ev-cat { color: #9be7ff; }
-.col-evo .ev-res { font-weight: 700; color: #ffd24a; margin-left: auto; }
-.col-evo .ev-op { opacity: 0.5; }
-.col-done { align-self: center; margin-top: 8px; }
+.ca-bar > i {
+  display: block; height: 100%;
+  background: var(--accent); border-radius: var(--r-pill);
+  transition: width 0.4s ease;
+}
+.col-ach.done .ca-bar > i { background: var(--hp); }
+.ca-num { font-size: var(--fz-xs); opacity: 0.7; min-width: 54px; text-align: right; color: var(--ink); }
+.col-ach.done .ca-num { color: var(--hp); opacity: 1; font-weight: 700; }
+.col-evos { display: flex; flex-direction: column; gap: var(--s1); }
+.col-evo {
+  display: flex; align-items: center; gap: var(--s2); flex-wrap: wrap;
+  background: var(--surface-1); border-radius: var(--r-md);
+  border: 1px solid var(--hairline);
+  padding: var(--s2) var(--s3); font-size: var(--fz-sm);
+  box-shadow: var(--e1), var(--bevel);
+  transition: opacity 0.15s;
+}
+.col-evo.locked { opacity: 0.32; }
+.col-evo .ev-w { font-weight: 700; color: var(--ink); }
+.col-evo .ev-cat { color: var(--xp); }
+.col-evo .ev-res { font-weight: 700; color: var(--accent); margin-left: auto; }
+.col-evo .ev-op { opacity: 0.38; color: var(--ink); }
+.col-done { align-self: center; margin-top: var(--s2); }
 `;
 
 export class CollectionScreen {

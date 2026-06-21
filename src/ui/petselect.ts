@@ -5,22 +5,63 @@ import type { PetDef } from '../game/types';
 const CSS = `
 .petselect {
   position: fixed; left: 50%; bottom: 17%; transform: translateX(-50%);
-  z-index: 21; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  z-index: 21; display: flex; flex-direction: column; align-items: center; gap: var(--s2);
   pointer-events: none;
 }
 .petselect[hidden] { display: none; }
-.pet-title { font-size: 12px; letter-spacing: 3px; opacity: 0.8; font-weight: 700; }
-.pet-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; max-width: 92vw; }
-.pet-chip {
-  pointer-events: auto; min-width: 70px;
-  background: rgba(14,18,26,0.85); border: 2px solid #2c3445; border-radius: 10px;
-  color: #fff; cursor: pointer; padding: 6px; display: flex; flex-direction: column;
-  align-items: center; gap: 2px; transition: transform 0.08s ease, border-color 0.08s ease;
+.pet-title {
+  font-size: var(--fz-xs);
+  letter-spacing: 3px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  opacity: 0.9;
+  text-shadow: 0 0 8px rgba(255,210,74,.4);
 }
-.pet-chip:hover { transform: translateY(-2px); }
-.pet-chip.sel { border-color: #86f7ff; box-shadow: 0 0 12px rgba(134,247,255,0.35); }
-.pet-ico { font-size: 22px; }
-.pet-name { font-size: 11px; font-weight: 700; }
+.pet-row {
+  display: flex; gap: var(--s2); flex-wrap: wrap; justify-content: center; max-width: 92vw;
+}
+.pet-chip {
+  pointer-events: auto;
+  min-width: 70px;
+  background: var(--surface-1);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-md);
+  color: var(--ink, #fff);
+  cursor: pointer;
+  padding: var(--s2) var(--s2);
+  display: flex; flex-direction: column; align-items: center; gap: var(--s1);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--e1), var(--bevel, inset 0 1px 0 rgba(255,255,255,.08));
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+  outline: none;
+}
+.pet-chip:hover {
+  transform: translateY(-3px);
+  background: var(--surface-2);
+  border-color: var(--stroke-strong);
+  box-shadow: var(--e2), var(--bevel, inset 0 1px 0 rgba(255,255,255,.12));
+}
+.pet-chip:active {
+  transform: translateY(-1px);
+  box-shadow: var(--e1), var(--bevel, inset 0 1px 0 rgba(255,255,255,.08));
+}
+.pet-chip.sel {
+  border-color: var(--accent);
+  background: rgba(255,210,74,.10);
+  box-shadow: 0 0 0 1px var(--accent), var(--e2), inset 0 1px 0 rgba(255,210,74,.18);
+}
+.pet-chip.sel .pet-name {
+  color: var(--accent);
+}
+.pet-ico { font-size: 22px; line-height: 1; }
+.pet-name {
+  font-size: var(--fz-xs);
+  font-weight: 700;
+  letter-spacing: .5px;
+  transition: color 0.12s ease;
+}
 `;
 
 export class PetSelect {

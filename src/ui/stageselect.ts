@@ -11,32 +11,73 @@ const CSS = `
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   pointer-events: none;
 }
 .stageselect[hidden] { display: none; }
-.ss-title { font-size: 12px; letter-spacing: 3px; opacity: 0.8; font-weight: 700; }
-.ss-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; max-width: 92vw; }
+.ss-title {
+  font-size: var(--fz-xs);
+  letter-spacing: 3px;
+  font-weight: 700;
+  color: var(--ink);
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+.ss-row {
+  display: flex;
+  gap: var(--s2);
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: 92vw;
+}
 .ss-chip {
   pointer-events: auto;
   min-width: 96px;
-  background: rgba(14, 18, 26, 0.85);
-  border: 2px solid #2c3445;
-  border-radius: 12px;
-  color: #fff;
+  background: var(--surface-1);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-md);
+  color: var(--ink);
   cursor: pointer;
-  padding: 8px 8px;
+  padding: var(--s2) var(--s3);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  transition: transform 0.08s ease, border-color 0.08s ease;
+  gap: var(--s1);
+  box-shadow: var(--e1), var(--bevel);
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
 }
-.ss-chip:hover { transform: translateY(-2px); }
-.ss-chip.sel { border-color: #ffd24a; box-shadow: 0 0 14px rgba(255, 210, 74, 0.35); }
-.ss-ico { font-size: 24px; }
-.ss-name { font-size: 12px; font-weight: 700; }
-.ss-desc { font-size: 10px; opacity: 0.7; text-align: center; line-height: 1.2; }
+.ss-chip:hover {
+  transform: translateY(-2px);
+  background: var(--surface-2);
+  border-color: var(--stroke-strong);
+  box-shadow: var(--e2), var(--bevel);
+}
+.ss-chip:active {
+  transform: translateY(0);
+  box-shadow: var(--e1), var(--bevel);
+}
+.ss-chip.sel {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow: var(--e2), 0 0 18px rgba(255, 210, 74, 0.28), var(--bevel);
+}
+.ss-chip.sel .ss-name { color: var(--accent); }
+.ss-ico { font-size: var(--fz-xl); line-height: 1; }
+.ss-name {
+  font-size: var(--fz-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  transition: color 0.15s ease;
+}
+.ss-desc {
+  font-size: var(--fz-xs);
+  opacity: 0.55;
+  text-align: center;
+  line-height: 1.3;
+}
 `;
 
 export class StageSelect {

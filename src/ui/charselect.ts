@@ -12,37 +12,73 @@ const CSS = `
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: var(--s2);
   pointer-events: none;
 }
 .charselect[hidden] { display: none; }
 .cs-title {
-  font-size: 12px;
+  font-size: var(--fz-sm);
   letter-spacing: 3px;
-  opacity: 0.8;
   font-weight: 700;
+  color: var(--accent);
+  text-shadow: 0 0 12px rgba(255, 210, 74, 0.45);
+  opacity: 0.92;
 }
-.cs-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+.cs-row { display: flex; gap: var(--s3); flex-wrap: wrap; justify-content: center; }
 .cs-chip {
   pointer-events: auto;
   width: 92px;
-  background: rgba(14, 18, 26, 0.85);
-  border: 2px solid #2c3445;
-  border-radius: 12px;
-  color: #fff;
+  background: var(--surface-1);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-md);
+  color: var(--ink, #fff);
   cursor: pointer;
-  padding: 8px 6px;
+  padding: var(--s2) var(--s1);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
-  transition: transform 0.08s ease, border-color 0.08s ease;
+  gap: var(--s1);
+  box-shadow: var(--e1), var(--bevel);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background 0.15s ease;
 }
-.cs-chip:hover { transform: translateY(-2px); }
-.cs-chip.sel { border-color: #46d17a; box-shadow: 0 0 14px rgba(70, 209, 122, 0.35); }
-.cs-ico { font-size: 28px; }
-.cs-name { font-size: 12px; font-weight: 700; }
-.cs-desc { font-size: 10px; opacity: 0.7; text-align: center; line-height: 1.2; }
+.cs-chip:hover {
+  transform: translateY(-3px);
+  background: var(--surface-2);
+  border-color: var(--stroke-strong);
+  box-shadow: var(--e2), var(--bevel);
+}
+.cs-chip:active {
+  transform: translateY(-1px);
+  box-shadow: var(--e1), var(--bevel);
+}
+.cs-chip.sel {
+  border-color: var(--accent);
+  background: var(--surface-2);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 18px rgba(255, 210, 74, 0.25),
+    var(--e2),
+    var(--bevel);
+}
+.cs-ico { font-size: var(--fz-xl); }
+.cs-name {
+  font-size: var(--fz-sm);
+  font-weight: 700;
+  color: var(--ink, #fff);
+}
+.cs-chip.sel .cs-name { color: var(--accent); }
+.cs-desc {
+  font-size: var(--fz-xs);
+  opacity: 0.65;
+  text-align: center;
+  line-height: 1.2;
+}
 `;
 
 export class CharSelect {

@@ -16,37 +16,33 @@ const CSS = `
 @font-face { font-family: 'Stencil'; src: url('${asset('assets/fonts/black.woff2')}') format('woff2'); font-display: swap; }
 @font-face { font-family: 'Cond'; src: url('${asset('assets/fonts/oswald.woff2')}') format('woff2'); font-weight: 500 700; font-display: swap; }
 
+/* ── Title Screen Shell ──────────────────────────────────────────────────── */
 .title-screen {
-  --toxic: #8bf04a;
-  --amber: #ffb31f;
-  --bone: #ece9dd;
-  --danger: #ff3b3b;
   position: fixed;
   inset: 0;
   z-index: 20;
   display: flex;
   flex-direction: column;
-  color: var(--bone);
+  color: #e8eaf0;
   font-family: 'Cond', 'Oswald', system-ui, sans-serif;
+  /* deep game-space bg: subtle gold radial warmth + xp-blue hint from below */
   background:
-    radial-gradient(80% 50% at 50% 30%, rgba(110, 200, 70, 0.10), transparent 60%),
-    radial-gradient(120% 80% at 50% 120%, rgba(255, 150, 20, 0.07), transparent 55%),
-    linear-gradient(180deg, #0a0d0a 0%, #07080b 60%, #050507 100%);
+    radial-gradient(80% 50% at 50% 28%, rgba(255, 210, 74, 0.07), transparent 58%),
+    radial-gradient(100% 60% at 50% 110%, rgba(138, 166, 255, 0.06), transparent 52%),
+    linear-gradient(180deg, #080b11 0%, var(--bg, #0b0e15) 55%, #070910 100%);
 }
 .title-screen[hidden] { display: none; }
-/* scanline + vignette grit so it doesn't read as a flat dashboard */
+/* vignette layer — darkens edges so the hero stage reads as a spotlight */
 .title-screen::after {
   content: '';
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(0deg, rgba(0,0,0,0) 0 2px, rgba(0,0,0,0.16) 2px 3px),
-    radial-gradient(120% 100% at 50% 40%, transparent 55%, rgba(0,0,0,0.6) 100%);
-  mix-blend-mode: multiply;
-  opacity: 0.5;
+  background: radial-gradient(120% 100% at 50% 38%, transparent 50%, rgba(0,0,0,0.68) 100%);
+  z-index: 0;
 }
 
+/* ── Scrollable lobby body ───────────────────────────────────────────────── */
 .lobby-scroll {
   flex: 1;
   min-height: 0;
@@ -55,69 +51,81 @@ const CSS = `
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: clamp(14px, 3.5vh, 36px) 14px 18px;
+  gap: var(--s4, 16px);
+  padding: clamp(var(--s4, 16px), 3.5vh, 40px) var(--s4, 16px) var(--s5, 24px);
   position: relative;
   z-index: 1;
 }
 
+/* ── Hero block: logo + stage + tagline ──────────────────────────────────── */
 .lobby-hero {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: var(--s1, 4px);
   text-align: center;
 }
 
+/* Wordmark — gold hero accent for the main title */
 .hero-logo { margin: 0; line-height: 0.9; }
 .hero-logo .lg-main {
   display: block;
   font-family: 'Stencil', 'Cond', sans-serif;
-  font-size: clamp(40px, 10vw, 84px);
-  letter-spacing: 2px;
-  color: var(--bone);
-  text-shadow: 0 0 1px var(--bone), 3px 3px 0 #1c1c1c, 0 6px 18px rgba(0,0,0,0.8),
-    0 0 30px rgba(140, 240, 74, 0.12);
+  font-size: clamp(40px, 10vw, 86px);
+  letter-spacing: 3px;
+  color: var(--accent, #ffd24a);
+  text-shadow:
+    0 0 2px var(--accent, #ffd24a),
+    3px 3px 0 rgba(0,0,0,0.55),
+    0 6px 24px rgba(255, 210, 74, 0.22),
+    var(--ink, 0 2px 6px rgba(0,0,0,0.9));
 }
-.hero-logo .lg-main b { color: var(--danger); -webkit-text-stroke: 0; }
+/* "BREAK" portion uses a slightly deeper amber for contrast punch */
+.hero-logo .lg-main b {
+  color: #ffb830;
+  -webkit-text-stroke: 0;
+}
 .hero-logo .lg-sub {
   display: block;
   font-family: 'Cond', sans-serif;
   font-weight: 700;
   font-size: clamp(13px, 3vw, 22px);
-  letter-spacing: clamp(6px, 2.6vw, 16px);
-  margin-top: 4px;
-  padding-left: clamp(6px, 2.6vw, 16px);
-  color: var(--toxic);
-  text-shadow: 0 0 12px rgba(140, 240, 74, 0.5), 0 2px 4px #000;
+  letter-spacing: clamp(6px, 2.6vw, 18px);
+  margin-top: var(--s2, 8px);
+  padding-left: clamp(6px, 2.6vw, 18px);
+  color: rgba(232, 234, 240, 0.72);
+  text-transform: uppercase;
+  text-shadow: var(--ink, 0 2px 6px rgba(0,0,0,0.8));
 }
 
-/* spotlight stage with the live survivor */
+/* Spotlight stage that hosts the animated character */
 .hero-stage {
   position: relative;
   width: clamp(220px, 60vw, 280px);
   height: clamp(210px, 56vw, 270px);
   display: grid;
   place-items: center;
-  margin: -8px 0 -10px;
+  margin: -4px 0 -6px;
 }
-.hero-stage::before { /* spotlight cone + floor pool */
+/* Gold-tinted floor pool + conic spotlight beam */
+.hero-stage::before {
   content: '';
   position: absolute;
   inset: -8% -10% 0;
   background:
-    radial-gradient(56% 40% at 50% 90%, rgba(140, 240, 74, 0.40), rgba(140,240,74,0.07) 58%, transparent 72%),
-    conic-gradient(from 270deg at 50% 4%, transparent 74deg, rgba(190,235,155,0.14) 90deg, transparent 106deg);
+    radial-gradient(56% 38% at 50% 90%, rgba(255, 210, 74, 0.28), rgba(255,210,74,0.05) 56%, transparent 70%),
+    conic-gradient(from 270deg at 50% 4%, transparent 72deg, rgba(255,230,150,0.10) 90deg, transparent 108deg);
 }
-.hero-stage::after { /* contact shadow under the feet */
+/* Soft contact shadow under the character's feet */
+.hero-stage::after {
   content: '';
   position: absolute;
   left: 50%;
   bottom: 13%;
-  width: 40%;
+  width: 42%;
   height: 14px;
   transform: translateX(-50%);
-  background: radial-gradient(closest-side, rgba(0,0,0,0.7), transparent);
+  background: radial-gradient(closest-side, rgba(0,0,0,0.65), transparent);
 }
 .hero-char {
   position: relative;
@@ -128,138 +136,212 @@ const CSS = `
   background-size: 3640px 2080px;      /* 1792x1024 scaled so one 128px cell = 260px */
   background-position: 0 -520px;       /* row 2 = facing the camera (south) */
   image-rendering: auto;
-  filter: drop-shadow(0 7px 10px rgba(0,0,0,0.55)) drop-shadow(0 0 16px rgba(140,240,74,0.22));
+  filter:
+    drop-shadow(0 7px 12px rgba(0,0,0,0.60))
+    drop-shadow(0 0 18px rgba(255, 210, 74, 0.18));
   animation: hero-idle 1.8s steps(14) infinite;
 }
 @keyframes hero-idle { to { background-position-x: -3640px; } } /* 14 frames x 260px */
 
+/* Subtle tagline beneath the hero */
 .title-tagline {
-  margin: 0;
-  font-size: clamp(12px, 2.2vw, 16px);
+  margin: var(--s2, 8px) 0 0;
+  font-size: clamp(11px, 2.2vw, var(--fz-sm, 12px));
   font-weight: 500;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: rgba(236, 233, 221, 0.66);
+  color: rgba(232, 234, 240, 0.45);
 }
+
+/* Stats pill — gold accent, tabular numerics */
 .title-stats {
-  margin: 8px 0 0;
+  margin: var(--s2, 8px) 0 0;
   font-family: 'Cond', sans-serif;
-  font-size: 13px;
+  font-size: var(--fz-sm, 12px);
   font-weight: 700;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: #0a0d0a;
-  background: linear-gradient(180deg, #ffd05a, var(--amber));
-  padding: 4px 16px;
-  border-radius: 4px;
-  box-shadow: 0 3px 10px rgba(255, 179, 31, 0.35);
+  font-variant-numeric: tabular-nums;
+  color: var(--accent-ink, #2a1d02);
+  background: linear-gradient(180deg, #ffe27a 0%, var(--accent, #ffd24a) 55%, #e8b830 100%);
+  padding: var(--s1, 4px) var(--s4, 16px);
+  border-radius: var(--r-sm, 8px);
+  box-shadow: var(--e1, 0 2px 8px rgba(0,0,0,0.4)), var(--bevel, inset 0 1px 0 rgba(255,255,255,0.35));
 }
 .title-stats[hidden] { display: none; }
 
-/* --- reparented pickers become rugged slot panels --- */
+/* ── Reparented pickers — frosted-glass slot panels ──────────────────────── */
 .lobby-scroll .stageselect,
 .lobby-scroll .charselect,
 .lobby-scroll .petselect {
   position: static;
   transform: none;
   width: min(680px, 96vw);
-  gap: 12px;
-  padding: 16px 14px 14px;
-  border-radius: 4px;
-  background:
-    linear-gradient(180deg, rgba(20, 26, 20, 0.72), rgba(10, 13, 16, 0.72));
-  border: 1px solid rgba(140, 240, 74, 0.14);
-  border-top: 2px solid rgba(140, 240, 74, 0.5);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  gap: var(--s3, 12px);
+  padding: var(--s4, 16px) var(--s3, 12px) var(--s3, 12px);
+  border-radius: var(--r-md, 12px);
+  background: var(--surface-2, rgba(28,35,51,.88));
+  backdrop-filter: blur(var(--glass-blur, 9px));
+  -webkit-backdrop-filter: blur(var(--glass-blur, 9px));
+  border: 1px solid var(--stroke, rgba(255,255,255,.12));
+  border-top: 1px solid var(--stroke-strong, rgba(255,255,255,.24));
+  box-shadow:
+    var(--e2, 0 8px 24px rgba(0,0,0,0.5)),
+    var(--bevel, inset 0 1px 0 rgba(255,255,255,0.08));
   animation: lobby-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transition: box-shadow 0.2s ease;
 }
+
+/* Panel section labels — muted, spaced caps */
 .lobby-scroll .ss-title,
 .lobby-scroll .cs-title,
 .lobby-scroll .pet-title {
   font-family: 'Cond', sans-serif;
   font-weight: 700;
-  font-size: 13px;
+  font-size: var(--fz-xs, 10px);
   letter-spacing: 4px;
+  text-transform: uppercase;
   opacity: 1;
-  color: var(--toxic);
-  text-shadow: 0 0 10px rgba(140, 240, 74, 0.3);
+  color: rgba(232, 234, 240, 0.50);
+  text-shadow: none;
 }
-/* slot chips: darker, beveled, hard selected state */
+
+/* Slot chips — dark surface-1, hairline border, bevel highlight */
 .lobby-scroll .ss-chip,
 .lobby-scroll .cs-chip,
 .lobby-scroll .pet-chip,
 .lobby-scroll .gear-chip {
-  background: linear-gradient(180deg, #161b16, #0c0f0c);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 4px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 5px rgba(0, 0, 0, 0.5);
+  background: var(--surface-1, rgba(17,22,33,.74));
+  border: 1px solid var(--hairline, rgba(255,255,255,.07));
+  border-radius: var(--r-sm, 8px);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 2px 6px rgba(0,0,0,0.45);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-.lobby-scroll .cs-name, .lobby-scroll .ss-name, .lobby-scroll .pet-name {
-  font-family: 'Cond', sans-serif; font-weight: 700; letter-spacing: 0.5px;
+.lobby-scroll .cs-name,
+.lobby-scroll .ss-name,
+.lobby-scroll .pet-name {
+  font-family: 'Cond', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.5px;
 }
+
+/* Selected chip — gold ring + glow */
 .lobby-scroll .ss-chip.sel,
 .lobby-scroll .cs-chip.sel,
 .lobby-scroll .pet-chip.sel {
-  border-color: var(--toxic);
-  box-shadow: 0 0 0 1px var(--toxic), 0 0 16px rgba(140, 240, 74, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  border-color: var(--accent, #ffd24a);
+  box-shadow:
+    0 0 0 1px var(--accent, #ffd24a),
+    0 0 18px rgba(255, 210, 74, 0.30),
+    inset 0 1px 0 rgba(255,255,255,0.10);
 }
-@keyframes lobby-rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 
-/* --- sticky action bar --- */
+@keyframes lobby-rise {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Sticky action bar ───────────────────────────────────────────────────── */
 .lobby-actions {
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 9px;
-  padding: 12px 16px max(12px, env(safe-area-inset-bottom));
-  background: linear-gradient(0deg, #050507 38%, rgba(5, 5, 7, 0));
+  gap: var(--s3, 12px);
+  padding: var(--s3, 12px) var(--s4, 16px) max(var(--s3, 12px), env(safe-area-inset-bottom));
+  /* glass shelf that fades into the bg */
+  background:
+    linear-gradient(0deg, var(--bg, #0b0e15) 42%, rgba(11,14,21,0));
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
   position: relative;
   z-index: 1;
 }
+
+/* Decorative accent divider above the PLAY button — thin gold hairline */
 .hazard-bar {
   width: min(360px, 84vw);
-  height: 7px;
-  border-radius: 2px;
-  background: repeating-linear-gradient(-45deg, var(--amber) 0 11px, #14110a 11px 22px);
-  opacity: 0.85;
-  box-shadow: 0 0 10px rgba(255, 179, 31, 0.25);
+  height: 1px;
+  border-radius: var(--r-pill, 999px);
+  background: linear-gradient(90deg,
+    transparent 0%,
+    var(--accent, #ffd24a) 30%,
+    rgba(255, 210, 74, 0.6) 50%,
+    var(--accent, #ffd24a) 70%,
+    transparent 100%);
+  opacity: 0.55;
+  box-shadow: 0 0 10px rgba(255, 210, 74, 0.35);
 }
+
+/* ── PLAY button — big, gold, tactile ────────────────────────────────────── */
 .title-play {
   pointer-events: auto;
   min-width: min(360px, 84vw);
   font-family: 'Stencil', 'Cond', sans-serif;
-  background: linear-gradient(180deg, #9bf85e 0%, var(--toxic) 50%, #4fae26 100%);
-  color: #0a1f05;
+  background: linear-gradient(180deg,
+    #ffe57a 0%,
+    var(--accent, #ffd24a) 45%,
+    #e8b420 100%);
+  color: var(--accent-ink, #2a1d02);
   border: none;
   font-size: clamp(22px, 5vw, 32px);
-  letter-spacing: 5px;
-  padding: 13px 40px;
-  border-radius: 6px;
+  letter-spacing: 6px;
+  padding: 14px 40px;
+  border-radius: var(--r-md, 12px);
   cursor: pointer;
-  box-shadow: 0 8px 0 #2c6815, 0 14px 26px rgba(80, 200, 50, 0.35),
-    inset 0 2px 0 rgba(255, 255, 255, 0.55);
-  transition: transform 0.06s ease, box-shadow 0.06s ease, filter 0.1s ease;
+  /* layered shadow: hard press shelf + soft ambient glow + inset bevel */
+  box-shadow:
+    0 7px 0 #a07a08,
+    var(--e3, 0 14px 32px rgba(0,0,0,0.6)),
+    0 12px 28px rgba(255, 210, 74, 0.30),
+    var(--bevel, inset 0 2px 0 rgba(255,255,255,0.50));
+  transition:
+    transform 0.07s ease,
+    box-shadow 0.07s ease,
+    filter 0.12s ease;
 }
-.title-play:hover { filter: brightness(1.05); }
+.title-play:hover {
+  filter: brightness(1.08);
+  box-shadow:
+    0 9px 0 #a07a08,
+    var(--e3, 0 14px 32px rgba(0,0,0,0.6)),
+    0 16px 32px rgba(255, 210, 74, 0.40),
+    var(--bevel, inset 0 2px 0 rgba(255,255,255,0.55));
+  transform: translateY(-1px);
+}
 .title-play:active {
   transform: translateY(6px);
-  box-shadow: 0 2px 0 #2c6815, 0 6px 14px rgba(80, 200, 50, 0.3), inset 0 2px 0 rgba(255, 255, 255, 0.5);
+  filter: brightness(0.97);
+  box-shadow:
+    0 1px 0 #a07a08,
+    0 4px 12px rgba(255, 210, 74, 0.20),
+    var(--bevel, inset 0 2px 0 rgba(255,255,255,0.40));
 }
+
+/* Controls hint + footer — quiet, muted */
 .title-controls {
   margin: 0;
-  font-size: clamp(10px, 2vw, 12px);
+  font-size: clamp(10px, 2vw, var(--fz-xs, 10px));
   font-weight: 500;
   letter-spacing: 1px;
   text-transform: uppercase;
-  opacity: 0.55;
+  color: rgba(232, 234, 240, 0.40);
 }
-.title-footer { margin: 0; font-size: 10px; opacity: 0.32; text-align: center; }
+.title-footer {
+  margin: 0;
+  font-size: var(--fz-xs, 10px);
+  color: rgba(232, 234, 240, 0.22);
+  text-align: center;
+}
 
+/* ── Accessibility ───────────────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .hero-char { animation: none; }
-  .lobby-scroll .stageselect, .lobby-scroll .charselect, .lobby-scroll .petselect { animation-duration: 0.01ms; }
+  .lobby-scroll .stageselect,
+  .lobby-scroll .charselect,
+  .lobby-scroll .petselect { animation-duration: 0.01ms; }
 }
 `;
 

@@ -51,6 +51,7 @@ import * as C from '../config';
 import { rand, pick } from '../core/rng';
 import { audio } from '../audio/sfx';
 import { meta, type RunResult } from '../meta/save';
+import { applyMetaUpgrades } from '../meta/upgrades';
 import { settings } from '../ui/settings';
 import type { Minimap } from '../ui/minimap';
 
@@ -808,7 +809,7 @@ export class Game {
       this.flash(t.flash, 0.16);
       this.addShake(6 + tier * 2);
       this.particles.ring(x, y, t.color, 110);
-      audio.levelUp();
+      audio.comboTier(tier);
     }
   }
 
@@ -1738,6 +1739,7 @@ export class Game {
       if (Enemy.boss[e]) {
         this.runStats.bossKills++;
         this.win = true;
+        audio.bossDefeat();
       }
       if (ENEMY_DEFS[Enemy.kind[e]].explodeOnDeath) {
         const hx = Position.x[e];
@@ -1947,6 +1949,7 @@ export class Game {
       const g = GEAR[eq[slot]];
       if (g?.mods) for (const k of Object.keys(g.mods) as (keyof Mods)[]) m[k] += g.mods[k] ?? 0;
     }
+    applyMetaUpgrades(m); // permanent power-ups bought in the shop
     for (const [id, lvl] of this.passives) PASSIVES[id].apply(lvl, m);
     this.mods = m;
     this.player.maxHp = 100 * m.maxHpMul;

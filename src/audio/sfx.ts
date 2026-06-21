@@ -8,9 +8,17 @@
 //   audio.setBossMode(true)  -> layer in a tenser drone/bass
 //   audio.setSfxVolume(v)    -> 0..1; also setMusicVolume / setMuted
 //
+// New methods (same routing / guard pattern as originals):
+//   audio.comboTier(tier)    -> escalating positive sting for kill-streak tier-ups
+//   audio.bossWarn()         -> tense low swell / alarm for boss arrival
+//   audio.bossDefeat()       -> satisfying descending boom for boss kill
+//   audio.coin()             -> short bright 'ching' for currency pickup
+//
 // Design notes:
 //  - Master -> { sfxBus, musicBus } so SFX and music volume are independent.
 //  - A muted flag drops the master gain to 0 without losing the stored levels.
+//  - A soft limiter (DynamicsCompressorNode) sits on the sfxBus so dense
+//    combat bursts don't clip the output.
 //  - Music is scheduled a little ahead of the clock with a lookahead timer so
 //    note timing stays tight even if requestAnimationFrame hitches.
 //  - Every public method bails out cleanly if the context isn't ready, so the
@@ -53,6 +61,8 @@ class AudioEngine {
   private master: Maybe<GainNode> = null;
   private sfxBus: Maybe<GainNode> = null;
   private musicBus: Maybe<GainNode> = null;
+  // Soft limiter on the sfx chain keeps dense combat from clipping.
+  private sfxLimiter: Maybe<DynamicsCompressorNode> = null;
 
   // Shared white-noise buffer, lazily built (used by several SFX).
   private noiseBuf: Maybe<AudioBuffer> = null;
@@ -105,12 +115,25 @@ class AudioEngine {
   private buildGraph(): void {
     const ctx = this.ctx;
     if (!ctx) return;
+
     this.master = ctx.createGain();
-    this.sfxBus = ctx.createGain();
     this.musicBus = ctx.createGain();
-    this.master.connect(ctx.destination);
-    this.sfxBus.connect(this.master);
+
+    // SFX chain: gain -> compressor/limiter -> master.
+    // The compressor tames loud transient clusters in dense combat without
+    // squashing the feel; ratio 12:1 with fast release acts as a brickwall.
+    this.sfxBus = ctx.createGain();
+    this.sfxLimiter = ctx.createDynamicsCompressor();
+    this.sfxLimiter.threshold.value = -6;  // dBFS
+    this.sfxLimiter.knee.value = 2;
+    this.sfxLimiter.ratio.value = 12;
+    this.sfxLimiter.attack.value = 0.001;
+    this.sfxLimiter.release.value = 0.1;
+    this.sfxBus.connect(this.sfxLimiter);
+    this.sfxLimiter.connect(this.master);
+
     this.musicBus.connect(this.master);
+    this.master.connect(ctx.destination);
     this.applyVolumes();
   }
 
@@ -165,18 +188,22 @@ class AudioEngine {
       dur: number;
       gain?: number;
       attack?: number;
+      decay?: number;   // explicit decay time (defaults to full dur)
       freqEnd?: number; // optional pitch sweep target
       dest?: AudioNode;
       detune?: number;
+      startTime?: number; // absolute ctx time; defaults to ctx.currentTime
     },
   ): void {
     const ctx = this.ctx;
     const bus = opts.dest ?? this.sfxBus;
     if (!ctx || !bus) return;
-    const now = ctx.currentTime;
+    const now = opts.startTime ?? ctx.currentTime;
     const dur = opts.dur;
     const peak = opts.gain ?? 0.3;
-    const attack = Math.min(opts.attack ?? 0.005, dur * 0.5);
+    const attack = Math.min(opts.attack ?? 0.004, dur * 0.4);
+    // decay: how long after the peak the envelope falls to near-zero.
+    const decay = Math.min(opts.decay ?? dur, dur);
 
     const osc = ctx.createOscillator();
     const g = ctx.createGain();
@@ -192,11 +219,11 @@ class AudioEngine {
 
     g.gain.setValueAtTime(0.0001, now);
     g.gain.exponentialRampToValueAtTime(peak, now + attack);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + attack + decay);
 
     osc.connect(g).connect(bus);
     osc.start(now);
-    osc.stop(now + dur + 0.02);
+    osc.stop(now + attack + decay + 0.02);
   }
 
   /** A short burst of filtered noise — good for impacts, hits, clicks. */
@@ -204,20 +231,23 @@ class AudioEngine {
     opts: {
       dur: number;
       gain?: number;
+      attack?: number;
       type?: BiquadFilterType;
       freq?: number;
       q?: number;
       freqEnd?: number;
       dest?: AudioNode;
+      startTime?: number;
     },
   ): void {
     const ctx = this.ctx;
     const bus = opts.dest ?? this.sfxBus;
     const buf = this.getNoise();
     if (!ctx || !bus || !buf) return;
-    const now = ctx.currentTime;
+    const now = opts.startTime ?? ctx.currentTime;
     const dur = opts.dur;
     const peak = opts.gain ?? 0.3;
+    const attack = opts.attack ?? 0.002;
 
     const src = ctx.createBufferSource();
     src.buffer = buf;
@@ -235,7 +265,8 @@ class AudioEngine {
     filt.Q.value = opts.q ?? 1;
 
     const g = ctx.createGain();
-    g.gain.setValueAtTime(peak, now);
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(peak, now + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
 
     src.connect(filt).connect(g).connect(bus);
@@ -249,23 +280,33 @@ class AudioEngine {
     if (!this.ready) return;
     const f = 720 * vary(40);
     // Snappy downward zap + a touch of noise for "air".
+    // Short attack (0.001 s) and fast decay give punch without lingering.
     this.blip({
       type: 'square',
       freq: f,
       freqEnd: f * 0.45,
-      dur: 0.08,
+      dur: 0.10,
       gain: 0.16,
-      attack: 0.002,
+      attack: 0.001,
+      decay: 0.07,
     });
-    this.noiseHit({ dur: 0.05, gain: 0.06, type: 'highpass', freq: 1800 });
+    this.noiseHit({
+      dur: 0.05,
+      gain: 0.07,
+      attack: 0.001,
+      type: 'highpass',
+      freq: 1800,
+    });
   }
 
   hit(): void {
     if (!this.ready) return;
     // Tight clicky impact — bandpassed noise with a quick pitch drop.
+    // vary() on both layers keeps rapid repeat kills sounding distinct.
     this.noiseHit({
       dur: 0.07,
-      gain: 0.18,
+      gain: 0.20,
+      attack: 0.001,
       type: 'bandpass',
       freq: 2400 * vary(120),
       q: 0.8,
@@ -273,24 +314,34 @@ class AudioEngine {
     });
     this.blip({
       type: 'triangle',
-      freq: 320 * vary(60),
-      freqEnd: 160,
+      freq: 320 * vary(80),
+      freqEnd: 120,
       dur: 0.06,
-      gain: 0.1,
+      gain: 0.11,
+      attack: 0.001,
+      decay: 0.055,
     });
   }
 
   pickup(): void {
     if (!this.ready) return;
-    // Bright two-note "ting" upward — coin/gem feel.
+    // Bright two-note "ting" upward — gem/power-up feel.
     const base = 880 * vary(30);
-    this.blip({ type: 'triangle', freq: base, dur: 0.06, gain: 0.13 });
+    this.blip({
+      type: 'triangle',
+      freq: base,
+      dur: 0.07,
+      gain: 0.13,
+      attack: 0.002,
+      decay: 0.06,
+    });
     this.blip({
       type: 'triangle',
       freq: base * 1.5,
-      dur: 0.09,
+      dur: 0.10,
       gain: 0.11,
       attack: 0.001,
+      decay: 0.08,
     });
   }
 
@@ -303,9 +354,10 @@ class AudioEngine {
       this.scheduleBlip(i * 0.07, {
         type: 'sawtooth',
         freq: semis(root, s),
-        dur: 0.16,
-        gain: 0.12,
-        attack: 0.004,
+        dur: 0.18,
+        gain: 0.13,
+        attack: 0.003,
+        decay: 0.15,
       });
     });
   }
@@ -356,11 +408,13 @@ class AudioEngine {
       freqEnd: 70,
       dur: 0.22,
       gain: 0.18,
-      attack: 0.002,
+      attack: 0.001,
+      decay: 0.20,
     });
     this.noiseHit({
       dur: 0.16,
-      gain: 0.1,
+      gain: 0.10,
+      attack: 0.001,
       type: 'lowpass',
       freq: 900,
       freqEnd: 200,
@@ -373,10 +427,119 @@ class AudioEngine {
       type: 'square',
       freq: 660 * vary(20),
       dur: 0.04,
-      gain: 0.1,
+      gain: 0.10,
       attack: 0.001,
+      decay: 0.035,
     });
   }
+
+  // ---- new methods --------------------------------------------------------
+
+  /**
+   * Escalating kill-streak sting. tier 1 = modest chime, higher tiers add
+   * more harmonics, brighter pitch, and a louder transient.
+   */
+  comboTier(tier: number): void {
+    if (!this.ready) return;
+    const t = Math.max(1, Math.round(tier));
+    // Root pitch rises with tier (semitone steps up a major scale).
+    const majorSteps = [0, 2, 4, 7, 9, 12, 14];
+    const rootSemis = majorSteps[Math.min(t - 1, majorSteps.length - 1)];
+    const root = semis(880, rootSemis) * vary(10);
+    // Gain and decay grow with tier so higher tiers feel weightier.
+    const gain = Math.min(0.10 + t * 0.025, 0.26);
+    const dur  = 0.10 + t * 0.02;
+
+    // Fundamental — triangle for a clean bell-like tone.
+    this.blip({ type: 'triangle', freq: root, dur, gain, attack: 0.002, decay: dur * 0.9 });
+    // Fifth above for body.
+    this.blip({ type: 'triangle', freq: root * 1.5, dur: dur * 0.8, gain: gain * 0.55, attack: 0.002 });
+    // Octave sparkle only from tier 2 upward.
+    if (t >= 2) {
+      this.blip({ type: 'sine', freq: root * 2, dur: dur * 0.6, gain: gain * 0.35, attack: 0.001 });
+    }
+    // Bright noise transient punch for tiers 3+.
+    if (t >= 3) {
+      this.noiseHit({ dur: 0.04, gain: 0.08 * (t / 3), attack: 0.001, type: 'highpass', freq: 4000 });
+    }
+    // Extra shimmering high partial at tier 5+.
+    if (t >= 5) {
+      this.blip({ type: 'sine', freq: root * 3, dur: dur * 0.5, gain: gain * 0.20, attack: 0.001 });
+    }
+  }
+
+  /**
+   * Tense boss-arrival warning: a slow rising drone swell with a pulsed
+   * low-frequency alarm blip to signal "danger incoming".
+   */
+  bossWarn(): void {
+    if (!this.ready) return;
+    const ctx = this.ctx;
+    const bus = this.sfxBus;
+    if (!ctx || !bus) return;
+
+    // Low menacing drone that swells over ~1.4 s.
+    this.blip({ type: 'sawtooth', freq: 60, freqEnd: 72, dur: 1.4, gain: 0.16, attack: 0.25 });
+    this.blip({ type: 'square',   freq: 57, freqEnd: 68, dur: 1.4, gain: 0.09, attack: 0.30, detune: -8 });
+
+    // Two alarm pulses offset in time — classic "dun-dun" warning motif.
+    // Pulse 1: immediate.
+    this.blip({ type: 'sawtooth', freq: 180, freqEnd: 130, dur: 0.28, gain: 0.13, attack: 0.01, decay: 0.22 });
+    this.noiseHit({ dur: 0.20, gain: 0.07, attack: 0.005, type: 'bandpass', freq: 600, freqEnd: 300, q: 3 });
+    // Pulse 2: ~0.45 s later.
+    this.scheduleBlip(0.45, { type: 'sawtooth', freq: 165, freqEnd: 110, dur: 0.35, gain: 0.15, attack: 0.01, decay: 0.28 });
+    window.setTimeout(() => {
+      if (this.ready)
+        this.noiseHit({ dur: 0.25, gain: 0.09, attack: 0.004, type: 'bandpass', freq: 500, freqEnd: 220, q: 3 });
+    }, 450);
+
+    // Subsonic rumble via noise through a very-low-pass filter.
+    this.noiseHit({ dur: 1.0, gain: 0.12, attack: 0.15, type: 'lowpass', freq: 120, freqEnd: 60 });
+  }
+
+  /**
+   * Satisfying boss-kill resolution: a descending pitch "BOOM" followed by
+   * a bright triumphant chime tail.
+   */
+  bossDefeat(): void {
+    if (!this.ready) return;
+
+    // === Impact layer ===
+    // Big descending sine boom — the "thud".
+    this.blip({ type: 'sine',     freq: 180, freqEnd: 28,  dur: 0.65, gain: 0.30, attack: 0.002, decay: 0.55 });
+    // Saw layer adds grit to the impact.
+    this.blip({ type: 'sawtooth', freq: 130, freqEnd: 40,  dur: 0.55, gain: 0.14, attack: 0.003, decay: 0.45 });
+    // Low noise body.
+    this.noiseHit({ dur: 0.50, gain: 0.18, attack: 0.003, type: 'lowpass', freq: 400, freqEnd: 60 });
+    // Sharp click transient at the very front for a defined attack.
+    this.noiseHit({ dur: 0.04, gain: 0.22, attack: 0.001, type: 'bandpass', freq: 2200, q: 0.7 });
+
+    // === Triumphant chime tail — delayed so the boom settles first ===
+    // Ascending perfect-fourth + octave arp.
+    const chimeRoot = 523.25 * vary(15); // C5 ± small detune each call
+    this.scheduleBlip(0.30, { type: 'triangle', freq: chimeRoot,        dur: 0.30, gain: 0.14, attack: 0.002, decay: 0.25 });
+    this.scheduleBlip(0.44, { type: 'triangle', freq: chimeRoot * 1.33, dur: 0.28, gain: 0.12, attack: 0.002, decay: 0.22 });
+    this.scheduleBlip(0.56, { type: 'triangle', freq: chimeRoot * 2,    dur: 0.35, gain: 0.15, attack: 0.002, decay: 0.30 });
+    // Extra sparkle sine at two octaves up.
+    this.scheduleBlip(0.62, { type: 'sine',     freq: chimeRoot * 4,    dur: 0.20, gain: 0.07, attack: 0.001, decay: 0.16 });
+  }
+
+  /**
+   * Short bright 'ching' for currency/coin pickup. Faster and more metallic
+   * than the general pickup() sound.
+   */
+  coin(): void {
+    if (!this.ready) return;
+    // Bright metallic fundamental.
+    const base = 1760 * vary(25); // A6 area, small random pitch spread
+    this.blip({ type: 'triangle', freq: base,       dur: 0.12, gain: 0.13, attack: 0.001, decay: 0.10 });
+    // Inharmonic partial for a metallic "ching" colour.
+    this.blip({ type: 'sine',     freq: base * 2.76, dur: 0.08, gain: 0.07, attack: 0.001, decay: 0.06 });
+    // Very short high-frequency noise transient — the "ting" click.
+    this.noiseHit({ dur: 0.025, gain: 0.10, attack: 0.001, type: 'highpass', freq: 5000 });
+  }
+
+  // ---- fire-and-forget helpers --------------------------------------------
 
   /** Fire a blip after `delay` seconds (used for multi-note flourishes). */
   private scheduleBlip(

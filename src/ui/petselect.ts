@@ -16,7 +16,7 @@ const CSS = `
   color: var(--accent);
   text-transform: uppercase;
   opacity: 0.9;
-  text-shadow: 0 0 8px rgba(255,210,74,.4);
+  text-shadow: 0 0 8px rgba(201, 162, 78,.4);
 }
 .pet-row {
   display: flex; gap: var(--s2); flex-wrap: wrap; justify-content: center; max-width: 92vw;
@@ -49,8 +49,8 @@ const CSS = `
 }
 .pet-chip.sel {
   border-color: var(--accent);
-  background: rgba(255,210,74,.10);
-  box-shadow: 0 0 0 1px var(--accent), var(--e2), inset 0 1px 0 rgba(255,210,74,.18);
+  background: rgba(201, 162, 78,.10);
+  box-shadow: 0 0 0 1px var(--accent), var(--e2), inset 0 1px 0 rgba(201, 162, 78,.18);
 }
 .pet-chip.sel .pet-name {
   color: var(--accent);

@@ -335,7 +335,7 @@ const CSS = `
 .set-toggle[aria-pressed='true'] {
   background: var(--accent);
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(255, 210, 74, 0.25);
+  box-shadow: 0 0 0 2px rgba(201, 162, 78, 0.25);
 }
 .set-toggle[aria-pressed='true']::after {
   transform: translateX(22px);

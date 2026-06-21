@@ -27,7 +27,7 @@ const CSS = `
   font-family: 'Cond', 'Oswald', system-ui, sans-serif;
   /* deep game-space bg: subtle gold radial warmth + xp-blue hint from below */
   background:
-    radial-gradient(80% 50% at 50% 28%, rgba(255, 210, 74, 0.07), transparent 58%),
+    radial-gradient(80% 50% at 50% 28%, rgba(201, 162, 78, 0.07), transparent 58%),
     radial-gradient(100% 60% at 50% 110%, rgba(138, 166, 255, 0.06), transparent 52%),
     linear-gradient(180deg, #080b11 0%, var(--bg, #0b0e15) 55%, #070910 100%);
 }
@@ -73,16 +73,16 @@ const CSS = `
   font-family: 'Stencil', 'Cond', sans-serif;
   font-size: clamp(40px, 10vw, 86px);
   letter-spacing: 3px;
-  color: var(--accent, #ffd24a);
+  color: var(--accent, #c9a24e);
   text-shadow:
-    0 0 2px var(--accent, #ffd24a),
+    0 0 2px var(--accent, #c9a24e),
     3px 3px 0 rgba(0,0,0,0.55),
-    0 6px 24px rgba(255, 210, 74, 0.22),
+    0 6px 24px rgba(201, 162, 78, 0.22),
     var(--ink, 0 2px 6px rgba(0,0,0,0.9));
 }
 /* "BREAK" portion uses a slightly deeper amber for contrast punch */
 .hero-logo .lg-main b {
-  color: #ffb830;
+  color: #c08a32;
   -webkit-text-stroke: 0;
 }
 .hero-logo .lg-sub {
@@ -113,7 +113,7 @@ const CSS = `
   position: absolute;
   inset: -8% -10% 0;
   background:
-    radial-gradient(56% 38% at 50% 90%, rgba(255, 210, 74, 0.28), rgba(255,210,74,0.05) 56%, transparent 70%),
+    radial-gradient(56% 38% at 50% 90%, rgba(201, 162, 78, 0.28), rgba(201, 162, 78,0.05) 56%, transparent 70%),
     conic-gradient(from 270deg at 50% 4%, transparent 72deg, rgba(255,230,150,0.10) 90deg, transparent 108deg);
 }
 /* Soft contact shadow under the character's feet */
@@ -138,7 +138,7 @@ const CSS = `
   image-rendering: auto;
   filter:
     drop-shadow(0 7px 12px rgba(0,0,0,0.60))
-    drop-shadow(0 0 18px rgba(255, 210, 74, 0.18));
+    drop-shadow(0 0 18px rgba(201, 162, 78, 0.18));
   animation: hero-idle 1.8s steps(14) infinite;
 }
 @keyframes hero-idle { to { background-position-x: -3640px; } } /* 14 frames x 260px */
@@ -163,7 +163,7 @@ const CSS = `
   text-transform: uppercase;
   font-variant-numeric: tabular-nums;
   color: var(--accent-ink, #2a1d02);
-  background: linear-gradient(180deg, #ffe27a 0%, var(--accent, #ffd24a) 55%, #e8b830 100%);
+  background: linear-gradient(180deg, #ffe27a 0%, var(--accent, #c9a24e) 55%, #e8b830 100%);
   padding: var(--s1, 4px) var(--s4, 16px);
   border-radius: var(--r-sm, 8px);
   box-shadow: var(--e1, 0 2px 8px rgba(0,0,0,0.4)), var(--bevel, inset 0 1px 0 rgba(255,255,255,0.35));
@@ -231,10 +231,10 @@ const CSS = `
 .lobby-scroll .ss-chip.sel,
 .lobby-scroll .cs-chip.sel,
 .lobby-scroll .pet-chip.sel {
-  border-color: var(--accent, #ffd24a);
+  border-color: var(--accent, #c9a24e);
   box-shadow:
-    0 0 0 1px var(--accent, #ffd24a),
-    0 0 18px rgba(255, 210, 74, 0.30),
+    0 0 0 1px var(--accent, #c9a24e),
+    0 0 18px rgba(201, 162, 78, 0.30),
     inset 0 1px 0 rgba(255,255,255,0.10);
 }
 
@@ -267,12 +267,12 @@ const CSS = `
   border-radius: var(--r-pill, 999px);
   background: linear-gradient(90deg,
     transparent 0%,
-    var(--accent, #ffd24a) 30%,
-    rgba(255, 210, 74, 0.6) 50%,
-    var(--accent, #ffd24a) 70%,
+    var(--accent, #c9a24e) 30%,
+    rgba(201, 162, 78, 0.6) 50%,
+    var(--accent, #c9a24e) 70%,
     transparent 100%);
   opacity: 0.55;
-  box-shadow: 0 0 10px rgba(255, 210, 74, 0.35);
+  box-shadow: 0 0 10px rgba(201, 162, 78, 0.35);
 }
 
 /* ── PLAY button — big, gold, tactile ────────────────────────────────────── */
@@ -281,9 +281,9 @@ const CSS = `
   min-width: min(360px, 84vw);
   font-family: 'Stencil', 'Cond', sans-serif;
   background: linear-gradient(180deg,
-    #ffe57a 0%,
-    var(--accent, #ffd24a) 45%,
-    #e8b420 100%);
+    #dcc06a 0%,
+    var(--accent, #c9a24e) 45%,
+    #a8842a 100%);
   color: var(--accent-ink, #2a1d02);
   border: none;
   font-size: clamp(22px, 5vw, 32px);
@@ -295,7 +295,7 @@ const CSS = `
   box-shadow:
     0 7px 0 #a07a08,
     var(--e3, 0 14px 32px rgba(0,0,0,0.6)),
-    0 12px 28px rgba(255, 210, 74, 0.30),
+    0 12px 28px rgba(201, 162, 78, 0.30),
     var(--bevel, inset 0 2px 0 rgba(255,255,255,0.50));
   transition:
     transform 0.07s ease,
@@ -307,7 +307,7 @@ const CSS = `
   box-shadow:
     0 9px 0 #a07a08,
     var(--e3, 0 14px 32px rgba(0,0,0,0.6)),
-    0 16px 32px rgba(255, 210, 74, 0.40),
+    0 16px 32px rgba(201, 162, 78, 0.40),
     var(--bevel, inset 0 2px 0 rgba(255,255,255,0.55));
   transform: translateY(-1px);
 }
@@ -316,7 +316,7 @@ const CSS = `
   filter: brightness(0.97);
   box-shadow:
     0 1px 0 #a07a08,
-    0 4px 12px rgba(255, 210, 74, 0.20),
+    0 4px 12px rgba(201, 162, 78, 0.20),
     var(--bevel, inset 0 2px 0 rgba(255,255,255,0.40));
 }
 

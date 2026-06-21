@@ -38,7 +38,7 @@ const CSS = `
   font-size: var(--fz-xl);
   letter-spacing: 3px;
   text-align: center;
-  text-shadow: 0 0 24px rgba(255,210,74,0.45);
+  text-shadow: 0 0 24px rgba(201, 162, 78,0.45);
 }
 
 .gear-slot {
@@ -85,8 +85,8 @@ const CSS = `
 /* Selected chip — gold glow */
 .gear-chip.sel {
   border-color: var(--accent);
-  background: rgba(255,210,74,0.10);
-  box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(255,210,74,0.35), var(--e2);
+  background: rgba(201, 162, 78,0.10);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 14px rgba(201, 162, 78,0.35), var(--e2);
 }
 .gear-chip.sel .gc-name { color: var(--accent); }
 
@@ -94,11 +94,11 @@ const CSS = `
 .gear-chip[data-rarity="common"]    { --_r: var(--stroke); }
 .gear-chip[data-rarity="rare"]      { border-color: var(--xp); box-shadow: var(--e1), 0 0 8px rgba(138,166,255,0.25); }
 .gear-chip[data-rarity="epic"]      { border-color: #c084fc; box-shadow: var(--e1), 0 0 8px rgba(192,132,252,0.25); }
-.gear-chip[data-rarity="legendary"] { border-color: var(--accent); box-shadow: var(--e1), 0 0 10px rgba(255,210,74,0.30); }
+.gear-chip[data-rarity="legendary"] { border-color: var(--accent); box-shadow: var(--e1), 0 0 10px rgba(201, 162, 78,0.30); }
 .gear-chip[data-rarity="rare"].sel,
 .gear-chip[data-rarity="epic"].sel,
 .gear-chip[data-rarity="legendary"].sel {
-  box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(255,210,74,0.40), var(--e2);
+  box-shadow: 0 0 0 1px var(--accent), 0 0 18px rgba(201, 162, 78,0.40), var(--e2);
   border-color: var(--accent);
 }
 

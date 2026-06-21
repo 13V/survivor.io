@@ -174,12 +174,12 @@ const BANISHES_PER_RUN = 3;
 // can't unbalance a run. Reset each run.
 const COMBO_WINDOW = 2.6; // seconds a streak survives without a fresh kill
 const COMBO_TIERS: { at: number; label: string; color: number; flash: string }[] = [
-  { at: 10, label: 'RAMPAGE', color: 0x7cfc00, flash: '#7cfc00' },
-  { at: 25, label: 'CARNAGE', color: 0xffd24a, flash: '#ffd24a' },
-  { at: 50, label: 'SLAUGHTER', color: 0xff9a3c, flash: '#ff9a3c' },
-  { at: 100, label: 'MASSACRE', color: 0xff4d6e, flash: '#ff4d6e' },
-  { at: 200, label: 'ANNIHILATION', color: 0xc77dff, flash: '#c77dff' },
-  { at: 350, label: 'GODLIKE', color: 0x00e5ff, flash: '#00e5ff' },
+  { at: 10, label: 'RAMPAGE', color: 0x9bb05a, flash: '#9bb05a' },
+  { at: 25, label: 'CARNAGE', color: 0xffd24a, flash: '#c9a24e' },
+  { at: 50, label: 'SLAUGHTER', color: 0xc98a3e, flash: '#c98a3e' },
+  { at: 100, label: 'MASSACRE', color: 0xb5462f, flash: '#b5462f' },
+  { at: 200, label: 'ANNIHILATION', color: 0xa06a86, flash: '#a06a86' },
+  { at: 350, label: 'GODLIKE', color: 0xd8c9a8, flash: '#d8c9a8' },
 ];
 
 

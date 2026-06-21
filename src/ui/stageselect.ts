@@ -61,7 +61,7 @@ const CSS = `
 .ss-chip.sel {
   border-color: var(--accent);
   background: var(--surface-2);
-  box-shadow: var(--e2), 0 0 18px rgba(255, 210, 74, 0.28), var(--bevel);
+  box-shadow: var(--e2), 0 0 18px rgba(201, 162, 78, 0.28), var(--bevel);
 }
 .ss-chip.sel .ss-name { color: var(--accent); }
 .ss-ico { font-size: var(--fz-xl); line-height: 1; }

@@ -21,7 +21,7 @@ const CSS = `
   letter-spacing: 3px;
   font-weight: 700;
   color: var(--accent);
-  text-shadow: 0 0 12px rgba(255, 210, 74, 0.45);
+  text-shadow: 0 0 12px rgba(201, 162, 78, 0.45);
   opacity: 0.92;
 }
 .cs-row { display: flex; gap: var(--s3); flex-wrap: wrap; justify-content: center; }
@@ -62,7 +62,7 @@ const CSS = `
   background: var(--surface-2);
   box-shadow:
     0 0 0 1px var(--accent),
-    0 0 18px rgba(255, 210, 74, 0.25),
+    0 0 18px rgba(201, 162, 78, 0.25),
     var(--e2),
     var(--bevel);
 }

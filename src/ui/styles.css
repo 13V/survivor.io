@@ -3,28 +3,29 @@
      One source of truth for the whole HUD: colours, glass, type, spacing,
      radii and elevation. Components consume these — no magic numbers. */
 
-  /* Brand + semantic colour */
-  --accent: #ffd24a; /* gold — the single hero accent */
-  --accent-ink: #2a1d02; /* readable text on accent fills */
-  --hp: #4fe08a;
-  --hp-deep: #1f8a4c;
-  --hp-low: #ff4d5e;
-  --hp-low-deep: #a8202e;
-  --hp-loss: #ff9bb0; /* the draining damage-trail colour */
-  --xp: #8aa6ff;
-  --xp-deep: #a06bff;
-  --boss: #ff5a6e;
-  --boss-deep: #ff8a3c;
+  /* Brand + semantic colour — muted, desaturated survival palette (gritty,
+     matte, not neon): brass accent, olive health, dried-blood danger. */
+  --accent: #c9a24e; /* muted brass / old-paper amber — the single accent */
+  --accent-ink: #1c1505; /* readable ink on accent fills */
+  --hp: #7ba052; /* muted moodle olive-green */
+  --hp-deep: #3f5e2b;
+  --hp-low: #b5462f; /* dried blood red */
+  --hp-low-deep: #6f2418;
+  --hp-loss: #9a5a4a; /* draining damage-trail: clotted */
+  --xp: #7d92a8; /* faded steel-slate */
+  --xp-deep: #586b80;
+  --boss: #b5462f;
+  --boss-deep: #8a4a26; /* rust */
 
-  /* Surfaces / glass */
-  --bg: #0b0e15;
-  --surface-1: rgba(17, 22, 33, 0.74);
-  --surface-2: rgba(28, 35, 51, 0.88);
-  --rail: rgba(0, 0, 0, 0.5);
-  --glass-blur: 9px;
-  --stroke: rgba(255, 255, 255, 0.12);
-  --stroke-strong: rgba(255, 255, 255, 0.24);
-  --hairline: rgba(255, 255, 255, 0.07);
+  /* Surfaces — dark, warm, grimy; more solid panel than frosted glass */
+  --bg: #14130e;
+  --surface-1: rgba(26, 24, 18, 0.82);
+  --surface-2: rgba(40, 36, 27, 0.9);
+  --rail: rgba(8, 7, 5, 0.6);
+  --glass-blur: 5px;
+  --stroke: rgba(225, 205, 160, 0.12); /* warm hairline */
+  --stroke-strong: rgba(225, 205, 160, 0.26);
+  --hairline: rgba(225, 205, 160, 0.07);
 
   /* Type scale */
   --fz-xl: 28px;
@@ -50,14 +51,14 @@
   --e1: 0 2px 6px rgba(0, 0, 0, 0.45);
   --e2: 0 6px 18px rgba(0, 0, 0, 0.5);
   --e3: 0 14px 34px rgba(0, 0, 0, 0.6);
-  --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  --bevel-strong: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+  --bevel: inset 0 1px 0 rgba(255, 248, 230, 0.06);
+  --bevel-strong: inset 0 1px 0 rgba(255, 248, 230, 0.14), inset 0 -2px 0 rgba(0, 0, 0, 0.28);
   --ink: 0 2px 6px rgba(0, 0, 0, 0.9);
 
   /* Legacy aliases (kept so the rest of the app keeps working) */
   --green: var(--hp);
   --gold: var(--accent);
-  --blue: #5ab0ff;
+  --blue: var(--xp);
   --red: var(--hp-low);
   --panel: var(--surface-1);
 }
@@ -78,9 +79,9 @@ body {
   padding: 0;
   height: 100%;
   overflow: hidden;
-  background: #0e1016;
-  color: #fff;
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: #ece4d2; /* warm bone-white, not pure white */
+  font-family: 'Cond', 'Oswald', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   -webkit-user-select: none;
   user-select: none;
   touch-action: none;
@@ -94,6 +95,31 @@ body {
 
 canvas {
   display: block;
+}
+
+/* Global grit: a heavy vignette + faint film grain over everything, for the
+   gritty survival-horror mood. Pointer-transparent so it never blocks input. */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  pointer-events: none;
+  background-image:
+    radial-gradient(125% 125% at 50% 42%, transparent 52%, rgba(0, 0, 0, 0.5) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+  background-size: 100% 100%, 160px 160px;
+  opacity: 0.5;
+  mix-blend-mode: normal;
+}
+body::after {
+  /* keep the noise layer itself subtle while the vignette stays strong */
+  background-blend-mode: normal, soft-light;
+}
+@media (prefers-reduced-motion: reduce) {
+  body::after {
+    background-image: radial-gradient(125% 125% at 50% 42%, transparent 52%, rgba(0, 0, 0, 0.5) 100%);
+  }
 }
 
 /* ---- HUD ---------------------------------------------------------------- */
@@ -171,7 +197,7 @@ canvas {
   border-radius: var(--r-sm);
   background: linear-gradient(180deg, var(--surface-2), var(--surface-1));
   border: 1px solid var(--accent);
-  box-shadow: var(--bevel), 0 0 12px rgba(255, 210, 74, 0.28), var(--e1);
+  box-shadow: var(--bevel), 0 0 12px rgba(201, 162, 78, 0.28), var(--e1);
   line-height: 1;
 }
 .lvl-badge .lvl-lab {
@@ -192,7 +218,7 @@ canvas {
 }
 @keyframes badge-pop {
   0% { transform: scale(1); }
-  35% { transform: scale(1.28); box-shadow: var(--bevel), 0 0 22px rgba(255, 210, 74, 0.7), var(--e1); }
+  35% { transform: scale(1.28); box-shadow: var(--bevel), 0 0 22px rgba(201, 162, 78, 0.7), var(--e1); }
   100% { transform: scale(1); }
 }
 
@@ -211,8 +237,8 @@ canvas {
   height: 100%;
   width: 0%;
   border-radius: inherit;
-  background: linear-gradient(180deg, var(--xp) 0%, #6a8bff 45%, var(--xp-deep) 100%);
-  box-shadow: 0 0 10px rgba(122, 130, 255, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  background: linear-gradient(180deg, var(--xp) 0%, #5b6e86 45%, var(--xp-deep) 100%);
+  box-shadow: 0 0 10px rgba(125, 146, 168, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   transition: width 0.25s cubic-bezier(0.22, 1, 0.36, 1);
 }
 /* animated sheen sweeping across the XP fill */
@@ -256,7 +282,7 @@ canvas {
   font-weight: 900;
   letter-spacing: 3px;
   color: var(--boss);
-  text-shadow: 0 1px 3px #000, 0 0 12px rgba(255, 90, 70, 0.5);
+  text-shadow: 0 1px 3px #000, 0 0 12px rgba(181, 70, 47, 0.5);
 }
 .boss-skull {
   font-size: var(--fz-sm);
@@ -268,14 +294,14 @@ canvas {
   border-radius: var(--r-sm);
   overflow: hidden;
   border: 1px solid rgba(255, 90, 90, 0.6);
-  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 16px rgba(255, 60, 70, 0.35);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6), 0 0 16px rgba(181, 70, 47, 0.35);
 }
 .bossbar {
   position: relative;
   height: 100%;
   width: 100%;
-  background: linear-gradient(180deg, #ff6b78 0%, var(--boss) 45%, var(--boss-deep) 100%);
-  box-shadow: 0 0 8px rgba(255, 90, 70, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  background: linear-gradient(180deg, #c56a52 0%, var(--boss) 45%, var(--boss-deep) 100%);
+  box-shadow: 0 0 8px rgba(181, 70, 47, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.35);
   transition: width 0.12s linear;
 }
 .bossbar::after {
@@ -310,8 +336,8 @@ canvas {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 .chip.wpn {
-  border-color: rgba(255, 210, 74, 0.7);
-  box-shadow: var(--bevel), 0 0 9px rgba(255, 210, 74, 0.35), var(--e1);
+  border-color: rgba(201, 162, 78, 0.7);
+  box-shadow: var(--bevel), 0 0 9px rgba(201, 162, 78, 0.35), var(--e1);
 }
 .chip.pas {
   border-color: rgba(90, 176, 255, 0.7);
@@ -404,14 +430,14 @@ canvas {
   width: 100%;
   z-index: 1;
   border-radius: inherit;
-  background: linear-gradient(180deg, #6cf0a2 0%, var(--hp) 45%, var(--hp-deep) 100%);
-  box-shadow: 0 0 10px rgba(70, 209, 122, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4),
+  background: linear-gradient(180deg, #9bc274 0%, var(--hp) 45%, var(--hp-deep) 100%);
+  box-shadow: 0 0 10px rgba(123, 160, 82, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.4),
     inset 0 -3px 6px rgba(0, 0, 0, 0.2);
   transition: width 0.12s cubic-bezier(0.22, 1, 0.36, 1), background 0.25s ease;
 }
 .hpwrap.low .hpbar {
-  background: linear-gradient(180deg, #ff7d8a 0%, var(--hp-low) 45%, var(--hp-low-deep) 100%);
-  box-shadow: 0 0 14px rgba(255, 77, 94, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  background: linear-gradient(180deg, #c56a52 0%, var(--hp-low) 45%, var(--hp-low-deep) 100%);
+  box-shadow: 0 0 14px rgba(181, 70, 47, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.4);
   animation: hp-danger 0.85s ease-in-out infinite;
 }
 @keyframes hp-danger {
@@ -497,7 +523,7 @@ canvas {
   font-size: 28px;
   letter-spacing: 3px;
   color: var(--gold);
-  text-shadow: 0 2px 8px #000, 0 0 20px rgba(255, 210, 74, 0.45);
+  text-shadow: 0 2px 8px #000, 0 0 20px rgba(201, 162, 78, 0.45);
   animation: pop-in 0.32s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
@@ -562,12 +588,12 @@ canvas {
 
 .card.wpn {
   border-color: var(--gold);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 18px rgba(255, 210, 74, 0.25),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 18px rgba(201, 162, 78, 0.25),
     0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
 .card.wpn:hover {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 30px rgba(255, 210, 74, 0.5),
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 30px rgba(201, 162, 78, 0.5),
     0 10px 22px rgba(0, 0, 0, 0.55);
 }
 
@@ -654,18 +680,18 @@ canvas {
   transform: scale(1.08);
 }
 .card-ctrl.lock.on {
-  background: rgba(255, 210, 74, 0.9);
+  background: rgba(201, 162, 78, 0.9);
   border-color: var(--gold);
   color: #1a1206;
   opacity: 1;
 }
 .card-ctrl.banish:hover {
-  background: rgba(255, 77, 94, 0.85);
+  background: rgba(181, 70, 47, 0.85);
   border-color: #ff4d5e;
 }
 .card.locked {
   border-color: var(--gold);
-  box-shadow: inset 0 0 0 1px rgba(255, 210, 74, 0.5), 0 0 22px rgba(255, 210, 74, 0.4),
+  box-shadow: inset 0 0 0 1px rgba(201, 162, 78, 0.5), 0 0 22px rgba(201, 162, 78, 0.4),
     0 6px 16px rgba(0, 0, 0, 0.5);
 }
 
@@ -757,16 +783,16 @@ canvas {
   letter-spacing: 2px;
   text-transform: uppercase;
   white-space: nowrap;
-  color: #ffd24a;
+  color: #c9a24e;
   text-shadow: 0 3px 0 rgba(0, 0, 0, 0.55), 0 0 26px currentColor;
   animation: banner-pop 1.5s cubic-bezier(0.18, 0.9, 0.3, 1) both;
 }
-.banner.bt1 { color: #7cfc00; }
-.banner.bt2 { color: #ffd24a; }
-.banner.bt3 { color: #ff9a3c; }
-.banner.bt4 { color: #ff4d6e; }
-.banner.bt5 { color: #c77dff; }
-.banner.bt6 { color: #00e5ff; }
+.banner.bt1 { color: #9bb05a; }
+.banner.bt2 { color: #c9a24e; }
+.banner.bt3 { color: #c98a3e; }
+.banner.bt4 { color: #b5462f; }
+.banner.bt5 { color: #a06a86; }
+.banner.bt6 { color: #d8c9a8; }
 @keyframes banner-pop {
   0% { opacity: 0; transform: scale(0.4) rotate(-6deg); }
   14% { opacity: 1; transform: scale(1.16) rotate(-2deg); }
@@ -844,9 +870,9 @@ canvas {
   text-align: center;
   font-weight: 800;
   letter-spacing: 1px;
-  color: #ffd24a;
-  background: rgba(255, 210, 74, 0.12);
-  border: 1px solid rgba(255, 210, 74, 0.5);
+  color: #c9a24e;
+  background: rgba(201, 162, 78, 0.12);
+  border: 1px solid rgba(201, 162, 78, 0.5);
   border-radius: 10px;
   padding: 8px 10px;
   animation: pop-in 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both 0.2s;
@@ -854,7 +880,7 @@ canvas {
 .end-badge {
   text-align: center;
   font-size: 13px;
-  color: #9be7ff;
+  color: #8aa0a0;
 }
 .next-wrap {
   background: rgba(20, 26, 38, 0.7);
@@ -893,7 +919,7 @@ canvas {
 .next-bar > i {
   display: block;
   height: 100%;
-  background: #ffd24a;
+  background: #c9a24e;
   border-radius: 3px;
 }
 .next-num {
@@ -906,7 +932,7 @@ canvas {
 
 .btn {
   pointer-events: auto;
-  background: linear-gradient(180deg, #5fe093 0%, var(--green) 55%, #2fa75c 100%);
+  background: linear-gradient(180deg, #8fb96a 0%, var(--green) 55%, #3f5e2b 100%);
   color: #06210f;
   border: none;
   font-weight: 800;

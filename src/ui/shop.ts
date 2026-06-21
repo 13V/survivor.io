@@ -34,14 +34,14 @@ const CSS = `
 }
 .shop-head h2 {
   margin: 0; color: var(--accent); letter-spacing: 2px; font-size: var(--fz-lg);
-  text-shadow: 0 0 18px rgba(255,210,74,0.35);
+  text-shadow: 0 0 18px rgba(201, 162, 78,0.35);
 }
 .shop-coins {
   display: inline-flex; align-items: center; gap: var(--s2);
   font-weight: 800; font-size: var(--fz-md); font-variant-numeric: tabular-nums;
   padding: 6px var(--s3); border-radius: var(--r-pill);
   background: var(--surface-2); border: 1px solid var(--accent);
-  box-shadow: var(--bevel), 0 0 12px rgba(255,210,74,0.25);
+  box-shadow: var(--bevel), 0 0 12px rgba(201, 162, 78,0.25);
   text-shadow: var(--ink);
 }
 .shop-sub { text-align: center; font-size: var(--fz-xs); opacity: 0.55; margin: -4px 0 var(--s1); }
@@ -54,7 +54,7 @@ const CSS = `
   -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-.shop-card.maxed { border-color: var(--accent); box-shadow: var(--e1), var(--bevel), 0 0 12px rgba(255,210,74,0.2); }
+.shop-card.maxed { border-color: var(--accent); box-shadow: var(--e1), var(--bevel), 0 0 12px rgba(201, 162, 78,0.2); }
 .su-ico {
   grid-row: span 2; font-size: 26px; width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
@@ -65,13 +65,13 @@ const CSS = `
 .su-desc { grid-column: 2; font-size: var(--fz-xs); opacity: 0.6; }
 .su-pips { grid-column: 2; display: flex; gap: 4px; margin-top: 3px; }
 .su-pip { width: 16px; height: 5px; border-radius: var(--r-pill); background: var(--rail); border: 1px solid var(--hairline); }
-.su-pip.on { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 6px rgba(255,210,74,0.5); }
+.su-pip.on { background: var(--accent); border-color: var(--accent); box-shadow: 0 0 6px rgba(201, 162, 78,0.5); }
 .su-buy {
   grid-row: span 2; pointer-events: auto;
   min-width: 78px; padding: 8px 12px; border-radius: var(--r-sm);
   font-weight: 800; font-size: var(--fz-sm); font-variant-numeric: tabular-nums;
   cursor: pointer; border: 1px solid var(--accent);
-  background: linear-gradient(180deg, #ffe57a, var(--accent) 60%, #e8b420);
+  background: linear-gradient(180deg, #dcc06a, var(--accent) 60%, #a8842a);
   color: var(--accent-ink); box-shadow: var(--bevel), var(--e1);
   transition: filter 0.12s, transform 0.08s, opacity 0.12s;
 }

@@ -31,7 +31,7 @@ const CSS = `
   letter-spacing: 2px;
   text-align: center;
   font-size: var(--fz-lg);
-  text-shadow: 0 0 18px rgba(255,210,74,0.35);
+  text-shadow: 0 0 18px rgba(201, 162, 78,0.35);
 }
 .col-sub { text-align: center; font-size: var(--fz-xs); opacity: 0.55; margin-bottom: var(--s1); color: var(--ink); }
 .col-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--s2); }
@@ -43,7 +43,7 @@ const CSS = `
 }
 .col-w.unlocked {
   border-color: var(--accent);
-  box-shadow: var(--e1), var(--bevel), 0 0 10px rgba(255,210,74,0.18);
+  box-shadow: var(--e1), var(--bevel), 0 0 10px rgba(201, 162, 78,0.18);
 }
 .col-w.locked { opacity: 0.45; }
 .cw-ico { font-size: 24px; }

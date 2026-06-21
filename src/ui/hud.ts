@@ -2,7 +2,7 @@
 import type { JoyState } from '../core/input';
 
 // Combo meter colours, indexed by streak tier (0 = warming up → 6 = GODLIKE).
-const COMBO_COLORS = ['#9be7ff', '#7cfc00', '#ffd24a', '#ff9a3c', '#ff4d6e', '#c77dff', '#00e5ff'];
+const COMBO_COLORS = ['#8aa0a0', '#9bb05a', '#c9a24e', '#c98a3e', '#b5462f', '#a06a86', '#d8c9a8'];
 
 export interface LevelOption {
   kind: 'weapon-new' | 'weapon-up' | 'passive-new' | 'passive-up' | 'heal';

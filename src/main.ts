@@ -12,12 +12,11 @@ import { Minimap } from './ui/minimap';
 import { audio } from './audio/sfx';
 import { meta, formatTime } from './meta/save';
 import { registerSW, enableTapFullscreen } from './pwa';
-import { CHARACTERS, STAGES, PETS } from './game/data';
+import { CHARACTERS, STAGES } from './game/data';
 import { CharSelect } from './ui/charselect';
 import { StageSelect } from './ui/stageselect';
 import { GearScreen } from './ui/gearscreen';
 import { CollectionScreen } from './ui/collection';
-import { PetSelect } from './ui/petselect';
 import { MetaShop } from './ui/shop';
 import { WalletPanel } from './ui/wallet';
 
@@ -67,7 +66,6 @@ async function main(): Promise<void> {
 
   const stageSelect = new StageSelect(title.mount, STAGES);
   const charSelect = new CharSelect(title.mount, Object.values(CHARACTERS));
-  const petSelect = new PetSelect(title.mount, Object.values(PETS));
   const gearScreen = new GearScreen(root); // floating loadout button + full-screen modal
   const collectionScreen = new CollectionScreen(root); // floating arsenal/achievements button + modal
   const shop = new MetaShop(root); // floating power-ups button + modal (spends coins)
@@ -89,12 +87,11 @@ async function main(): Promise<void> {
     wallet.setVisible(false);
     minimap.setVisible(true);
     // eslint-disable-next-line no-new
-    new Game(app, hud, minimap, charSelect.selected, stageSelect.selected, petSelect.selected);
+    new Game(app, hud, minimap, charSelect.selected, stageSelect.selected, null);
   });
   title.show();
   stageSelect.setVisible(true);
   charSelect.setVisible(true);
-  petSelect.setVisible(true);
   gearScreen.setVisible(true);
   collectionScreen.setVisible(true);
   shop.setVisible(true);

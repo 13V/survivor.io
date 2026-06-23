@@ -1077,7 +1077,8 @@ export class Game {
     const s = this.acquireSprite(this.tex.projectile);
     s.rotation = Math.atan2(vy, vx);
     s.tint = color;
-    s.scale.set(radius / 7);
+    // Render bullets well above their hit radius so they read clearly at play zoom.
+    s.scale.set((Math.max(radius, 7) / 7) * 1.8);
     this.spr[eid] = s;
   }
 
@@ -2653,14 +2654,16 @@ export class Game {
       const firing = tgt >= 0;
       this.muzzleSprite.visible = firing;
       if (firing) {
-        const gx = p.x + Math.cos(this.survFacing) * 26;
-        const gy = p.y + Math.sin(this.survFacing) * 26;
+        // Nudge forward toward the aim for the horizontal placement, but pin the height to
+        // the gun/hands on the upright sprite (fixed lift) so it never sinks to the feet.
+        const gx = p.x + Math.cos(this.survFacing) * 16;
+        const gy = p.y + Math.sin(this.survFacing) * 16;
         const gsx = this.isoX(gx, gy);
-        const gsy = this.isoY(gx, gy) - 12;
-        this.muzzleSprite.position.set(gsx, gsy - 2);
+        const gsy = this.isoY(p.x, p.y) - 30;
+        this.muzzleSprite.position.set(gsx, gsy);
         this.muzzleSprite.rotation = this.survFacing + Math.PI / 2;
         this.muzzleSprite.texture = mz[Math.floor(this.time * 26) % mz.length];
-        this.muzzleSprite.scale.set(1.1);
+        this.muzzleSprite.scale.set(0.85);
       }
     }
 

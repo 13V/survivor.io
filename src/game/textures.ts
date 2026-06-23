@@ -210,22 +210,18 @@ function makeBoss(renderer: Renderer): Texture {
 // core. Stays pale so Game's per-weapon tint reads cleanly. Collision radius ~7.
 // ----------------------------------------------------------------------------
 function makeProjectile(renderer: Renderer): Texture {
-  const r = 7;
+  const r = 9;
   const g = new Graphics();
 
-  g.circle(0, 0, r * 1.6).fill({ color: 0xfff3b0, alpha: 0.14 });
-  g.circle(0, 0, r * 1.3).fill({ color: 0xfff3b0, alpha: 0.2 });
+  // Soft glow (tint-colored) gives the bolt presence without a streak/trail.
+  g.circle(0, 0, r * 1.55).fill({ color: 0xffffff, alpha: 0.12 });
 
-  const k = 0.4;
-  const star = [
-    0, -r, r * k, -r * k, r, 0, r * k, r * k,
-    0, r, -r * k, r * k, -r, 0, -r * k, -r * k,
-  ];
-  g.poly(star).fill(0xffe98a);
-  g.poly([0, -r, r * k, -r * k, r, 0, r * k, r * k, 0, r]).fill({ color: 0xfff6c8, alpha: 0.55 });
-  g.circle(0, 0, r * 0.46).fill(0xfffce0);
-  g.circle(0, 0, r * 0.24).fill(0xffffff);
-  g.poly(star).stroke({ width: 1.25, color: 0xffffff, alignment: 0 });
+  // Solid DARK disc = a thick rim once the bright body sits on top. It stays dark through
+  // the per-bullet tint multiply, so bullets pop over light ground (roads/crosswalks).
+  g.circle(0, 0, r).fill(0x0e0a03);
+  // Bright tinted body (leaves a dark ring), then a white-hot core for dark ground too.
+  g.circle(0, 0, r * 0.72).fill(0xfff2c0);
+  g.circle(0, 0, r * 0.38).fill(0xffffff);
 
   return bake(renderer, g);
 }

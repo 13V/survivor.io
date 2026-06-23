@@ -1,0 +1,72 @@
+name: Deploy to GitHub Pages
+
+# Builds the Vite app and publishes dist/ to GitHub Pages.
+#
+# ONE-TIME SETUP (repo owner, in the GitHub UI):
+#   Settings → Pages → Build and deployment → Source = "GitHub Actions".
+# After that, every push to the default branch (below) redeploys automatically,
+# and you can also trigger a deploy by hand from the Actions tab ("Run workflow").
+#
+# The app is served from a project subpath (https://<owner>.github.io/<repo>/).
+# vite.config.ts uses base: './' and all runtime assets resolve via
+# document.baseURI, so the build is fully relocatable — no base path to hard-code.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/hopeful-faraday-jpcmko # current default branch — deploy from here
+  workflow_dispatch:
+
+# Least privilege the deploy needs: read the repo, publish Pages, mint the OIDC
+# token actions/deploy-pages uses to prove the artifact came from this run.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One Pages deploy at a time. Don't cancel an in-flight deploy — let it finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build # tsc --noEmit && vite build -> dist/
+
+      - name: Disable Jekyll (serve dist/ verbatim)
+        run: touch dist/.nojekyll
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

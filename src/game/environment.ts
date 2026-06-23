@@ -47,7 +47,7 @@ let buildings2: Texture[] = [];
 let buildings2Meta: BuildingMeta[] = [];
 const extras: Record<string, Texture[]> = {};
 const EXTRA_CATS = [
-  'railing', 'lamps', 'signs', 'rooftop', 'bins', 'rubble', 'furniture', 'struct', 'traffic', 'trees', 'graffiti', 'roaddetail', 'taxi', 'sedan',
+  'railing', 'lamps', 'signs', 'rooftop', 'bins', 'rubble', 'furniture', 'struct', 'traffic', 'trees', 'graffiti', 'taxi', 'sedan',
   // floor-grit pass: iso ground-tile variants + flat top-down decals
   'roadmark', 'asphaltvar', 'utility', 'lot', 'sidewalkvar', 'kerb',
   'blooddecal', 'oildecal', 'tiredecal', 'grimedecal', 'trashdecal', 'puddledecal',

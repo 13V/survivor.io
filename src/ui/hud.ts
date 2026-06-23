@@ -122,7 +122,7 @@ export class Hud {
         <p class="end-stats"></p>
         <div class="end-extra"></div>
         <button class="btn end-btn" data-ui>Play again</button>
-        <p class="hint">WASD / arrows or drag to move · attacks are automatic</p>
+        <p class="hint">WASD / arrows or drag to move · hold to fire</p>
       </div>`;
     root.appendChild(el);
 

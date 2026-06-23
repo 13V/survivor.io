@@ -283,7 +283,6 @@ export class Game {
   private fireBarrels: { s: Sprite; t: number }[] = [];
   private vignette: Sprite | null = null;
   private muzzleSprite: Sprite | null = null;
-  private tracer: Graphics | null = null;
   // Isometric ground tilemap: a pool of diamond tiles re-laid around the camera each frame.
   private groundTileC = new Container();
   private groundPool: Sprite[] = [];
@@ -1289,6 +1288,9 @@ export class Game {
   }
 
   private fireWeapons(dt: number): void {
+    // Hold-to-fire: ranged weapons only shoot while the player holds the fire input.
+    // Orbiting blades / auras run off h.update and keep going regardless.
+    const firing = this.input.firing;
     for (const w of this.weapons) {
       const h = behaviors[w.def.type];
       if (!h) continue;
@@ -1298,9 +1300,13 @@ export class Game {
       if (h.fire) {
         w.timer -= dt;
         if (w.timer <= 0) {
-          w.timer += Math.max(s.cooldown * this.mods.cdMul, 0.1);
-          h.fire(this.ctx, w, s);
-          if (w.def.type === 'projectile' || w.def.type === 'burst') audio.shoot();
+          if (firing) {
+            w.timer += Math.max(s.cooldown * this.mods.cdMul, 0.1);
+            h.fire(this.ctx, w, s);
+            if (w.def.type === 'projectile' || w.def.type === 'burst') audio.shoot();
+          } else {
+            w.timer = 0; // stay primed so the first press fires instantly
+          }
         }
       }
     }
@@ -2633,7 +2639,8 @@ export class Game {
     }
     this.syncDashButton();
 
-    // muzzle flash + bright tracer beam at the gun while firing at a nearby target
+    // Muzzle flash at the gun — only while the player is actually firing (hold to fire)
+    // and a target is in range. No tracer beam: the projectiles are the visible shots.
     const mz = this.env?.muzzle;
     if (mz?.length && this.survivor) {
       if (!this.muzzleSprite) {
@@ -2642,15 +2649,9 @@ export class Game {
         this.muzzleSprite.zIndex = 1e6 + 2;
         this.fxC.addChild(this.muzzleSprite);
       }
-      if (!this.tracer) {
-        this.tracer = new Graphics();
-        this.tracer.zIndex = 1e6 + 1;
-        this.fxC.addChild(this.tracer);
-      }
-      const tgt = this.dying ? -1 : this.nearestEnemy(p.x, p.y, 820);
+      const tgt = this.dying || !this.input.firing ? -1 : this.nearestEnemy(p.x, p.y, 820);
       const firing = tgt >= 0;
       this.muzzleSprite.visible = firing;
-      this.tracer.visible = firing;
       if (firing) {
         const gx = p.x + Math.cos(this.survFacing) * 26;
         const gy = p.y + Math.sin(this.survFacing) * 26;
@@ -2660,14 +2661,6 @@ export class Game {
         this.muzzleSprite.rotation = this.survFacing + Math.PI / 2;
         this.muzzleSprite.texture = mz[Math.floor(this.time * 26) % mz.length];
         this.muzzleSprite.scale.set(1.1);
-        const tx = this.isoX(Position.x[tgt], Position.y[tgt]);
-        const ty = this.isoY(Position.x[tgt], Position.y[tgt]) - 18;
-        this.tracer.clear();
-        this.tracer
-          .moveTo(gsx, gsy)
-          .lineTo(tx, ty)
-          .stroke({ width: 2.2, color: 0xffd060, alpha: 0.35 + Math.random() * 0.4 });
-        this.tracer.moveTo(gsx, gsy).lineTo(tx, ty).stroke({ width: 0.8, color: 0xffffff, alpha: 0.85 });
       }
     }
 

@@ -14,6 +14,7 @@ export interface JoyState {
 export class Input {
   private keys = new Set<string>();
   private pointerId = -1;
+  private down = new Set<number>(); // every non-UI pointer currently held (mouse or touch)
   private dashQueued = false;
   joy: JoyState = { active: false, baseX: 0, baseY: 0, knobX: 0, knobY: 0 };
   /** Normalized direction; magnitude 0..1. */
@@ -21,6 +22,11 @@ export class Input {
   /** Last non-zero facing, for weapons that fire "forward". */
   facing = { x: 1, y: 0 };
   enabled = true;
+
+  /** True while a non-UI pointer is held down — hold-to-fire (mouse or touch). */
+  get firing(): boolean {
+    return this.enabled && this.down.size > 0;
+  }
 
   constructor() {
     window.addEventListener('keydown', (e) => {
@@ -34,7 +40,12 @@ export class Input {
     window.addEventListener('pointermove', this.onMove, { passive: false });
     window.addEventListener('pointerup', this.onUp);
     window.addEventListener('pointercancel', this.onUp);
-    window.addEventListener('blur', () => this.keys.clear());
+    window.addEventListener('blur', () => {
+      this.keys.clear();
+      this.down.clear();
+      this.pointerId = -1;
+      this.joy.active = false;
+    });
   }
 
   private isUiTarget(e: PointerEvent): boolean {
@@ -43,7 +54,11 @@ export class Input {
   }
 
   private onDown = (e: PointerEvent) => {
-    if (!this.enabled || this.pointerId !== -1 || this.isUiTarget(e)) return;
+    if (!this.enabled || this.isUiTarget(e)) return;
+    this.down.add(e.pointerId); // any non-UI press = "fire held"
+    // A mouse fires but does NOT steer (desktop moves with WASD). Touch/pen drives the
+    // movement joystick *and* fires, so mobile keeps one-thumb control.
+    if (e.pointerType === 'mouse' || this.pointerId !== -1) return;
     this.pointerId = e.pointerId;
     this.joy.active = true;
     this.joy.baseX = this.joy.knobX = e.clientX;
@@ -57,6 +72,7 @@ export class Input {
   };
 
   private onUp = (e: PointerEvent) => {
+    this.down.delete(e.pointerId); // release stops firing (mouse or touch)
     if (e.pointerId !== this.pointerId) return;
     this.pointerId = -1;
     this.joy.active = false;

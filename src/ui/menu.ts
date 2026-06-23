@@ -381,7 +381,7 @@ export class TitleScreen {
       <div class="lobby-actions">
         <div class="hazard-bar"></div>
         <button class="title-play" type="button" data-ui>PLAY</button>
-        <p class="title-controls">WASD / arrows or drag to move — attacks are automatic</p>
+        <p class="title-controls">WASD / arrows or drag to move — hold to fire</p>
         <p class="title-footer">An original prototype · not affiliated with any existing game</p>
       </div>`;
     root.appendChild(el);

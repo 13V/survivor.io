@@ -54,6 +54,11 @@ jobs:
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
+        with:
+          # Best-effort: turn on Pages (Actions build type) via the API so no manual
+          # Settings toggle is needed. Requires the repo's plan to allow Pages — public
+          # repos on any plan, or private repos on Pro/Team/Enterprise.
+          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

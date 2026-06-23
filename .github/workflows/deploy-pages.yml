@@ -52,13 +52,11 @@ jobs:
       - name: Disable Jekyll (serve dist/ verbatim)
         run: touch dist/.nojekyll
 
+      # Reads the repo's Pages config. Requires Pages to be enabled once by the owner
+      # (Settings -> Pages -> Source = "GitHub Actions"). The Actions token cannot enable
+      # Pages itself ("Resource not accessible by integration"), so this is a manual one-time step.
       - name: Configure Pages
         uses: actions/configure-pages@v5
-        with:
-          # Best-effort: turn on Pages (Actions build type) via the API so no manual
-          # Settings toggle is needed. Requires the repo's plan to allow Pages — public
-          # repos on any plan, or private repos on Pro/Team/Enterprise.
-          enablement: true
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
